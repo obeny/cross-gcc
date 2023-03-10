@@ -395,7 +395,7 @@ MAKEOPTS="-j${JOBS}"
 
 BASE_CFLAGS="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections -s -Wno-error -w"
 BASE_LDFLAGS="-O1"
-BASE_CXXFLAGS="${BASE_CFLAGS} -fno-exceptions"
+BASE_CXXFLAGS="${BASE_CFLAGS}"
 BASE_CPPFLAGS="${BASE_CXXFLAGS}"
 
 # generic configure options
