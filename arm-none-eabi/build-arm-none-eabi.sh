@@ -30,10 +30,10 @@ STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb op
 CONF_COMMON="${CONF_PRFX} --target=${TARGET} --enable-multilib --enable-interwork"
 
 # newlibc configuration
-LIBC_FULL_OPTS="--enable-newlib-io-long-long --enable-newlib-io-c99-formats --enable-newlib-reent-check-verify --enable-newlib-register-fini --enable-newlib-retargetable-locking \
-    --disable-newlib-supplied-syscalls"
-LIBC_NANO_OPTS="--enable-newlib-nano-malloc --enable-newlib-global-atexit --enable-lite-exit --enable-newlib-nano-formatted-io --enable-newlib-reent-check-verify --enable-newlib-reent-small --enable-newlib-retargetable-locking \
-    --disable-newlib-unbuf-stream-opt --disable-newlib-wide-orient --disable-newlib-fseek-optimization --disable-newlib-supplied-syscalls --disable-newlib-fvwrite-in-streamio"
+LIBC_FULL_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-io-long-long --enable-newlib-io-c99-formats --enable-newlib-reent-check-verify --enable-newlib-register-fini --enable-newlib-retargetable-locking \
+    --disable-newlib-fvwrite-in-streamio --disable-newlib-fseek-optimization --disable-newlib-wide-orient --disable-newlib-unbuf-stream-opt"
+LIBC_NANO_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-reent-check-verify --enable-newlib-reent-small --enable-newlib-retargetable-locking --disable-newlib-fvwrite-in-streamio --disable-newlib-fseek-optimization --disable-newlib-wide-orient \
+    --enable-newlib-nano-malloc --disable-newlib-unbuf-stream-opt --enable-lite-exit --enable-newlib-global-atexit --enable-newlib-nano-formatted-io"
 
 LIBC_CFLAGS="-g -fdata-sections -ffunction-sections"
 
@@ -65,102 +65,82 @@ function stage_binutils()
 function stage_gcc()
 {
     set_buildflags_base
-    export CFLAGS_FOR_TARGET="${BASE_CFLAGS} -g -Os ${LIBC_CFLAGS}"
-
     cd ${BUILDDIR}/build-gcc
+
     configure_gcc --enable-languages=c --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} --with-newlib \
     --disable-libstdcxx-pch --without-headers "${GCC_LCPP}" || die "gcc configuration failed..."
     run_make all-gcc || die "gcc make failed..."
-    run_make -j1 install-gcc || die "gcc installation failed..."
+    make -j1 install-gcc || die "gcc installation failed..."
 
     remove_bdir build-gcc || die "removing builddir failed..."
 
     cd ${PREFIX}/${TARGET}
+    rm -rf lib/libiberty.a
     rm -rf include
-}
-
-function stage_newlib-nano()
-{
-    cd ${BUILDDIR}/build-libc-nano
-
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
-
-    export CFLAGS_FOR_TARGET="-g -Os ${LIBC_CFLAGS}"
-
-    configure_gen `srcdir ${NEWLIB_DNADR}` ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --disable-shared --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
-
-    run_make || die "newlib-nano make failed..."
-    run_make -j1 install || die "newlib-nano installation failed..."
-
-    remove_bdir build-libc-nano || die "removing builddir failed..."
 }
 
 function stage_newlib-full()
 {
+    clear_buildflags
+    export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
     cd ${BUILDDIR}/build-libc-full
-
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
-
-    export CFLAGS_FOR_TARGET="-g -O2 ${LIBC_CFLAGS}"
 
     configure_gen `srcdir ${NEWLIB_DNADR}` ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} --disable-shared || die "newlib-full configuration failed..."
 
     run_make || die "newlib-full make failed..."
-    run_make -j1 install || die "newlib-full installation failed..."
+    make -j1 install || die "newlib-full installation failed..."
 
     remove_bdir build-libc-full || die "removing builddir failed..."
 }
 
-function stage_gcc-finish-nano()
+function stage_newlib-nano()
 {
-    cd ${BUILDDIR}/build-gcc-nano
+    clear_buildflags
+    export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
+    cd ${BUILDDIR}/build-libc-nano
 
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
+    configure_gen `srcdir ${NEWLIB_DNADR}` ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --disable-shared --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
 
-    export CFLAGS_FOR_TARGET="${BASE_CFLAGS} -Os ${LIBC_CFLAGS}"
-    export CXXFLAGS_FOR_TARGET="${BASE_CXXFLAGS} -Os ${LIBC_CFLAGS}"
+    run_make || die "newlib-nano make failed..."
+    make -j1 install || die "newlib-nano installation failed..."
 
-    configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
-    --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} || die "gcc-finish-nano configuration failed..."
-
-    export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
-    run_make all || die "gcc-finish-nano make failed..."
-    run_make -j1 install || die "gcc-finish-nano installation failed..."
-    unset INHIBIT_LIBC_CFLAGS
-
-    remove_bdir build-gcc-nano || die "removing builddir failed..."
+    remove_bdir build-libc-nano || die "removing builddir failed..."
 }
 
 function stage_gcc-finish-full()
 {
+    set_buildflags_base
     cd ${BUILDDIR}/build-gcc-full
-
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
-
-    export CFLAGS_FOR_TARGET="${BASE_CFLAGS} -O2 ${LIBC_CFLAGS}"
-    export CXXFLAGS_FOR_TARGET="${BASE_CXXFLAGS} -O2 ${LIBC_CFLAGS}"
+    export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
+    export CXXFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS} -fno-exceptions"
 
     configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
-    --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
+    --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} "${GCC_LCPP}" || die "gcc-finish-full configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
     run_make all || die "gcc-finish-full make failed..."
-    run_make -j1 install || die "gcc-finish-full installation failed..."
+    make -j1 install || die "gcc-finish-full installation failed..."
     unset INHIBIT_LIBC_CFLAGS
 
     remove_bdir build-gcc-full || die "removing builddir failed..."
+}
+
+function stage_gcc-finish-nano()
+{
+    set_buildflags_base
+    cd ${BUILDDIR}/build-gcc-nano
+    export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
+    export CXXFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS} -fno-exceptions"
+
+    configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
+    --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} "${GCC_LCPP}" || die "gcc-finish-nano configuration failed..."
+
+    export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
+    run_make all || die "gcc-finish-nano make failed..."
+    make -j1 install || die "gcc-finish-nano installation failed..."
+    unset INHIBIT_LIBC_CFLAGS
+
+    remove_bdir build-gcc-nano || die "removing builddir failed..."
 }
 
 function stage_copy-nano()
@@ -186,34 +166,26 @@ function stage_copy-nano()
 
 function stage_gdb()
 {
+    set_buildflags_base
     cd ${BUILDDIR}/build-gdb
-
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
 
     configure_gen `srcdir ${GDB_DNADR}` ${CONF_COMMON} --with-libexpat --with-libexpat-prefix=${PREFIX_PREREQS} || die "gdb configuration failed..."
 
     run_make || die "gdb make failed..."
-    run_make -j1 install || die "gdb installation failed..."
+    make -j1 install || die "gdb installation failed..."
 
     remove_bdir build-gdb || die "removing builddir failed..."
 }
 
 function stage_openocd()
 {
+    set_buildflags_base
     cd ${BUILDDIR}/build-openocd
-
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
 
     configure_gen `srcdir ${OPENOCD_DNADR}` ${CONF_PRFX} --enable-ftdi --enable-internal-jimtcl || die "openocd configuration failed..."
 
     run_make || die "openocd make failed..."
-    run_make -j1 install || die "openocd installation failed..."
+    make -j1 install || die "openocd installation failed..."
 
     remove_bdir build-openocd || die "removing builddir failed..."
 }
