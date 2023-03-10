@@ -330,6 +330,12 @@ function set_buildflags_base()
 }
 
 # -----------------------------------------
+function clear_buildflags()
+{
+    unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
+}
+
+# -----------------------------------------
 function configure_binutils()
 {
     ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $@"
