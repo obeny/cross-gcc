@@ -8,16 +8,15 @@ source ../common.sh
 #
 
 # package versions
-#NEWLIB_VER="4.2.0.20211231"
-#NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@f59ff93046341e688bc36ea81bddd60eea405e21@master"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@8c87ffd372232476ac5d1705dd32ddda54134c2b@master"
-GDB_VER="12.1"
-OPENOCD_VER="0.12.0-rc1"
+NEWLIB_VER="4.3.0.20230120"
+#NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@8c87ffd372232476ac5d1705dd32ddda54134c2b@master"
+GDB_VER="13.1"
+OPENOCD_VER="0.12.0"
 #OPENOCD_VER="git@git://git.code.sf.net/p/openocd/code@4dbcb1e79d94a113af9c3da9c6f172782515f35e@openocd"
 
 # download addresses
-#NEWLIB_DNADR="ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz"
-NEWLIB_DNADR="${NEWLIB_VER}"
+NEWLIB_DNADR="ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz"
+#NEWLIB_DNADR="${NEWLIB_VER}"
 GDB_DNADR="http://ftp.gnu.org/gnu/gdb/gdb-${GDB_VER}.tar.xz"
 OPENOCD_DNADR="http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2"
 #OPENOCD_DNADR="${OPENOCD_VER}"
@@ -65,11 +64,7 @@ function stage_binutils()
 
 function stage_gcc()
 {
-    export CFLAGS="${BASE_CFLAGS}"
-    export CXXFLAGS="${CFLAGS}"
-    export LDFLAGS="${BASE_LDFLAGS}"
-    export CPPFLAGS="${BASE_CPPFLAGS}"
-
+    set_buildflags_base
     export CFLAGS_FOR_TARGET="${BASE_CFLAGS} -g -Os ${LIBC_CFLAGS}"
 
     cd ${BUILDDIR}/build-gcc
