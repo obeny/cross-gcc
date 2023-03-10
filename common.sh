@@ -53,37 +53,6 @@ function remove_bdir()
     rm -rf ${1}
 }
 
-# -----------------------------------------
-function configure_binutils()
-{
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $@"
-    print_details "binutils" "configure ${ARGS}"
-
-    SDIR="`srcdir ${BINUTILS_DNADR}`"
-    ../${SDIR}/configure ${ARGS}
-}
-
-# -----------------------------------------
-function configure_gcc()
-{
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GENOPTSGCC} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --enable-languages="${CONF_LANG}" $@"
-    print_details "gcc" "configure ${ARGS}"
-
-    SDIR="`srcdir ${GCC_DNADR}`"
-    ../${SDIR}/configure ${ARGS}
-}
-
-# -----------------------------------------
-function configure_gen()
-{
-    DIR=${1}
-    shift
-
-    ARGS="${CONF_PRFX} $@"
-    print_details "${DIR}" "configure ${ARGS}"
-
-    ../${DIR}/configure ${ARGS}
-}
 
 # -----------------------------------------
 function run_make()
@@ -124,7 +93,6 @@ function srcdir()
 	    ;;
     esac
 }
-
 
 # -----------------------------------------
 function download()
@@ -353,17 +321,55 @@ function show_info()
 }
 
 # -----------------------------------------
-function stage_binutils-generic()
+function set_buildflags_base()
 {
     export CFLAGS="${BASE_CFLAGS}"
     export CXXFLAGS="${CFLAGS}"
     export LDFLAGS="${BASE_LDFLAGS}"
     export CPPFLAGS="${BASE_CPPFLAGS}"
+}
 
+# -----------------------------------------
+function configure_binutils()
+{
+    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $@"
+    print_details "binutils" "configure ${ARGS}"
+
+    SDIR="`srcdir ${BINUTILS_DNADR}`"
+    ../${SDIR}/configure ${ARGS}
+}
+
+# -----------------------------------------
+function configure_gcc()
+{
+    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GENOPTSGCC} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --enable-languages="${CONF_LANG}" $@"
+    print_details "gcc" "configure ${ARGS}"
+
+    SDIR="`srcdir ${GCC_DNADR}`"
+    ../${SDIR}/configure ${ARGS}
+}
+
+# -----------------------------------------
+function configure_gen()
+{
+    DIR=${1}
+    shift
+
+    ARGS="${CONF_PRFX} $@"
+    print_details "${DIR}" "configure ${ARGS}"
+
+    ../${DIR}/configure ${ARGS}
+}
+
+# -----------------------------------------
+function stage_binutils-generic()
+{
     cd ${BUILDDIR}/build-binutils
+    set_buildflags_base
+
     configure_binutils || die "binutils configuration failed..."
     run_make || die "binutils make failed..."
-    run_make -j1 install || die "binutils installation failed..."
+    make -j1 install || die "binutils installation failed..."
 
     remove_bdir build-binutils || die "removing builddir failed..."
 }
@@ -383,7 +389,7 @@ MAKEOPTS="-j${JOBS}"
 BASE_CFLAGS="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections -s -Wno-error -w"
 BASE_LDFLAGS="-O1"
 BASE_CXXFLAGS="${BASE_CFLAGS} -fno-exceptions"
-BASE_CPPFLAGS=""
+BASE_CPPFLAGS="${BASE_CXXFLAGS}"
 
 # generic configure options
 CONF_LANG="c,c++"
