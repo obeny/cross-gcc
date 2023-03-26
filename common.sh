@@ -384,7 +384,7 @@ function stage_binutils-generic()
 # generic environment configuration
 CURDIR=`pwd`
 source ${CURDIR}/../VERSIONS.sh
-HOST="x86_64-pc-linux-gnu"
+HOST=`gcc -dumpmachine`
 TARGET=`basename ${CURDIR}`
 PREFIX=`abspath ${CURDIR}/../tc_${TARGET}`
 PREFIX_PREREQS="${PREFIX}/prereqs"
