@@ -1,7 +1,7 @@
 # toolchain main component versions
 BINUTILS_VER="2.40"
 #GCC_VER="12.2.0"
-GCC_VER="12-20230304"
+GCC_VER="12-20230325"
 
 # toolchain package urls
 BINUTILS_DNADR="http://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.bz2"
