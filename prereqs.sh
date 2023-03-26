@@ -1,7 +1,7 @@
 STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
 ALL_DNADR="$ZLIB_DNADR $GMP_DNADR $MPFR_DNADR $MPC_DNADR $ISL_DNADR $EXPAT_DNADR $ELFUTILS_DNADR "
 
-CFLAGS_PREREQ="-O2 -pipe -g0 -march=x86-64 -mtune=generic -w -ffunction-sections -fdata-sections"
+CFLAGS_PREREQ="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections"
 LDFLAGS_PREREQ="-Wl,-O1"
 
 function prereq_set_buildflags()
