@@ -8,7 +8,7 @@ source ../common.sh
 #
 
 # package versions
-NEWLIB_VER="4.2.0.20211231"
+NEWLIB_VER="4.3.0.20230120"
 #NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@8c87ffd372232476ac5d1705dd32ddda54134c2b@master"
 GDB_VER="13.1"
 OPENOCD_VER="0.12.0"
