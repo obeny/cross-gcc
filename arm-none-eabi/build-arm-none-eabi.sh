@@ -9,7 +9,7 @@ source ../common.sh
 
 # package versions
 #NEWLIB_VER="4.3.0.20230120"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@a9038789488e7cdac5a30898fc3b064782646108@main"
+NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@57e3e3d3abf6733567cc0f3d2a267a1dea21e9dd@main"
 GDB_VER="13.2"
 OPENOCD_VER="0.12.0"
 #OPENOCD_VER="git@git://git.code.sf.net/p/openocd/code@4dbcb1e79d94a113af9c3da9c6f172782515f35e@openocd"

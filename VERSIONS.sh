@@ -1,17 +1,17 @@
 # toolchain main component versions
-BINUTILS_VER="2.40"
-#GCC_VER="13.1.0"
-GCC_VER="13-20230527"
+BINUTILS_VER="2.41"
+GCC_VER="13.2.0"
+#GCC_VER="13-20230708"
 
 # toolchain package urls
 BINUTILS_DNADR="http://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.bz2"
-#GCC_DNADR="http://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz"
-#GCC_DNADR="https://gcc.gnu.org/pub/gcc/snapshots/LATEST-12/gcc-${GCC_VER}.tar.xz"
-GCC_DNADR="https://distfiles.gentoo.org/distfiles/gcc-${GCC_VER}.tar.xz"
+GCC_DNADR="http://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz"
+##GCC_DNADR="https://gcc.gnu.org/pub/gcc/snapshots/LATEST-12/gcc-${GCC_VER}.tar.xz"
+#GCC_DNADR="https://distfiles.gentoo.org/distfiles/gcc-${GCC_VER}.tar.xz"
 
 # prerequisities versions
 ZLIB_VER="1.2.13"
-GMP_VER="6.2.1"
+GMP_VER="6.3.0"
 MPFR_VER="4.2.0"
 MPC_VER="1.3.1"
 ISL_VER="0.26"
