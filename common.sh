@@ -38,7 +38,7 @@ function die()
 # -----------------------------------------
 function do_patch()
 {
-    if [ ${2} -z ]
+    if [ -z "${2}" ]
     then
 	patch -p0 < ${1} || die "patching: ${1} failed"
     else
@@ -224,7 +224,7 @@ function extract()
 	svn|git)
 	    print_info "Checking for bootstrap script"
 	    cd ${REPO_DIR}
-	    BOOTSTRAP="`find . -name '*bootstrap*'`"
+	    BOOTSTRAP="`find . -maxdepth 1 -name '*bootstrap*'`"
 	    if [ ! -z "${BOOTSTRAP}" ]; then
 		print_info "Running bootstrap ${BOOTSTRAP}"
 		./${BOOTSTRAP}
@@ -383,6 +383,7 @@ function stage_binutils-generic()
 
 # generic environment configuration
 CURDIR=`pwd`
+ROOTDIR=${CURDIR}/..
 source ${CURDIR}/../VERSIONS.sh
 HOST=`gcc -dumpmachine`
 TARGET=`basename ${CURDIR}`
