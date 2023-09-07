@@ -59,7 +59,7 @@ function stage_pr_gmp()
 function stage_pr_mpfr()
 {
     cd `srcdir ${MPFR_DNADR}`
-    do_patch ${ROOTDIR}/_patches/mpfr-4.2.0-p12.patch 1
+    #do_patch ${ROOTDIR}/_patches/mpfr-4.2.0-p12.patch 1
 
     print_info "BUILDING prerequisite: mpfr"
     prereq_set_buildflags
