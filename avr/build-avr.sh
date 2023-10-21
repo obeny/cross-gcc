@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2034,SC2086,SC2317,SC1091
 
 # load framework
 source ../common.sh
@@ -45,13 +46,13 @@ function stage_mkbuilddir()
 
 function stage_binutils()
 {
-    stage_binutils-generic
+    stage_binutils_generic
 }
 
 function stage_gcc()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-gcc
+    cd ${BUILDDIR}/build-gcc || exit
 
     configure_gcc --with-avrlibc=yes --with-dwarf2 || die "gcc configuration failed..."
     run_make || die "gcc make failed..."
@@ -63,9 +64,9 @@ function stage_gcc()
 function stage_avr_libc()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-libc
+    cd ${BUILDDIR}/build-libc || exit
 
-    configure_gen `srcdir ${LIBC_DNADR}` --host=avr --build=`../${SDIR}/config.guess` --with-debug-info=dwarf-2 || die "avr-libc configuration failed..."
+    configure_gen "$(srcdir ${LIBC_DNADR})" --host=avr --build="$(../${SDIR}/config.guess)" --with-debug-info=dwarf-2 || die "avr-libc configuration failed..."
     run_make || die "avr-libc make failed..."
     make -j1 install || die "avr-libc installation failed..."
 
@@ -75,9 +76,9 @@ function stage_avr_libc()
 function stage_avrdude()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-avrdude
+    cd ${BUILDDIR}/build-avrdude || exit
 
-    configure_gen `srcdir ${AVRDUDE_DNADR}` ${CONF_PRFX} --disable-parport || die "avrdude configuration failed..."
+    configure_gen "$(srcdir ${AVRDUDE_DNADR})" ${CONF_PRFX} --disable-parport || die "avrdude configuration failed..."
     run_make || die "avrdude make failed..."
     make -j1 install || die "avrdude installation failed..."
 

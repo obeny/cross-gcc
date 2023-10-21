@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2034,SC2086,SC2317,SC1091
 
 # load framework
 source ../common.sh
@@ -59,13 +60,13 @@ function stage_mkbuilddir()
 
 function stage_binutils()
 {
-    stage_binutils-generic
+    stage_binutils_generic
 }
 
 function stage_gcc()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-gcc
+    cd ${BUILDDIR}/build-gcc || exit
 
     configure_gcc --enable-languages=c --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} --with-newlib \
     --disable-libstdcxx-pch --without-headers "${GCC_LCPP}" || die "gcc configuration failed..."
@@ -74,7 +75,7 @@ function stage_gcc()
 
     remove_bdir build-gcc || die "removing builddir failed..."
 
-    cd ${PREFIX}/${TARGET}
+    cd ${PREFIX}/${TARGET} || exit
     rm -rf lib/libiberty.a
     rm -rf include
 }
@@ -83,9 +84,9 @@ function stage_newlib-full()
 {
     clear_buildflags
     export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
-    cd ${BUILDDIR}/build-libc-full
+    cd ${BUILDDIR}/build-libc-full || exit
 
-    configure_gen `srcdir ${NEWLIB_DNADR}` ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} --disable-shared || die "newlib-full configuration failed..."
+    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} --disable-shared || die "newlib-full configuration failed..."
 
     run_make || die "newlib-full make failed..."
     make -j1 install || die "newlib-full installation failed..."
@@ -97,9 +98,9 @@ function stage_newlib-nano()
 {
     clear_buildflags
     export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
-    cd ${BUILDDIR}/build-libc-nano
+    cd ${BUILDDIR}/build-libc-nano || exit
 
-    configure_gen `srcdir ${NEWLIB_DNADR}` ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --disable-shared --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
+    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --disable-shared --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
 
     run_make || die "newlib-nano make failed..."
     make -j1 install || die "newlib-nano installation failed..."
@@ -110,7 +111,7 @@ function stage_newlib-nano()
 function stage_gcc-finish-full()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-gcc-full
+    cd ${BUILDDIR}/build-gcc-full || exit
     export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
     export CXXFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS} -fno-exceptions"
 
@@ -128,7 +129,7 @@ function stage_gcc-finish-full()
 function stage_gcc-finish-nano()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-gcc-nano
+    cd ${BUILDDIR}/build-gcc-nano || exit
     export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
     export CXXFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS} -fno-exceptions"
 
@@ -167,9 +168,9 @@ function stage_copy-nano()
 function stage_gdb()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-gdb
+    cd ${BUILDDIR}/build-gdb || exit
 
-    configure_gen `srcdir ${GDB_DNADR}` ${CONF_COMMON} --with-libexpat --with-libexpat-prefix=${PREFIX_PREREQS} || die "gdb configuration failed..."
+    configure_gen "$(srcdir ${GDB_DNADR})" ${CONF_COMMON} --with-libexpat --with-libexpat-prefix=${PREFIX_PREREQS} || die "gdb configuration failed..."
 
     run_make || die "gdb make failed..."
     make -j1 install || die "gdb installation failed..."
@@ -180,9 +181,9 @@ function stage_gdb()
 function stage_openocd()
 {
     set_buildflags_base
-    cd ${BUILDDIR}/build-openocd
+    cd ${BUILDDIR}/build-openocd || exit
 
-    configure_gen `srcdir ${OPENOCD_DNADR}` ${CONF_PRFX} --enable-ftdi --enable-internal-jimtcl || die "openocd configuration failed..."
+    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PRFX} --enable-ftdi --enable-internal-jimtcl || die "openocd configuration failed..."
 
     run_make || die "openocd make failed..."
     make -j1 install || die "openocd installation failed..."

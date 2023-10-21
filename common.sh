@@ -1,19 +1,21 @@
 #!/bin/bash
+# shellcheck disable=SC2001,SC2034,SC2086,SC2119,SC2120,SC2155,SC1091
 
 # die if any error occured or variable is unset
 set -e
 set -u
+#set -x
 
 #
 # GENERIC STAGE FUNCTIONS
 #
 
-function stage_download()
+stage_download()
 {
     download_all
 }
 
-function stage_unpack()
+stage_unpack()
 {
     extract_all
 }
@@ -23,102 +25,114 @@ function stage_unpack()
 #
 
 # -----------------------------------------
-function abspath()
+abspath()
 {
-    echo "$(readlink -f "$1")"
+    readlink -f "$1"
 }
 
 # -----------------------------------------
-function die()
+die()
 {
     echo "!!! ${1}"
     exit 1
 }
 
 # -----------------------------------------
-function do_patch()
+do_patch()
 {
-    if [ -z "${2}" ]
+    local PFILE="${1}"
+    local PLEVEL="${2}"
+
+    if [ -z "${PLEVEL}" ]
     then
-	patch -p0 < ${1} || die "patching: ${1} failed"
+	patch -p0 < "${PFILE}" || die "patching: ${PFILE} failed"
     else
-	patch -p${2} < ${1} || die "patching: ${1} failed"
+	patch -p"${PLEVEL}" < "${PFILE}" || die "patching: ${PFILE} failed"
     fi
 }
 
 # -----------------------------------------
-function remove_bdir()
+remove_bdir()
 {
     cd ${BUILDDIR}
-    rm -rf ${1}
-}
-
-
-# -----------------------------------------
-function run_make()
-{
-    make ${MAKEOPTS} $@
+    rm -rf "${1}"
 }
 
 # -----------------------------------------
-function urlproto()
+run_make()
 {
-    DPATH="${1}"
+    make "${MAKEOPTS}" "$@"
+}
 
-    if [ ! -z "`echo ${DPATH} | grep '@'`" ]; then
-	echo "`echo ${DPATH} | cut -f 1 -d '@'` `echo ${DPATH} | cut -f 2- -d '@'`"
+# -----------------------------------------
+urlproto()
+{
+    local DPATH="${1}"
+
+    if echo "${DPATH}" | grep -q '@'; then
+	echo "$(echo ${DPATH} | cut -f 1 -d '@') $(echo ${DPATH} | cut -f 2- -d '@')"
     else
 	echo "web ${DPATH}"
     fi
 }
 
 # -----------------------------------------
-function srcdir()
+repodir()
 {
-    local DNLPATH=${1}
-    local URLPROTO=$(urlproto ${DNLPATH})
-    local PROTO="`echo ${URLPROTO} | cut -f 1 -d ' '`"
-    local URL="`echo ${URLPROTO} | cut -f 2 -d ' '`"
+    local URL="${1}"
+    local BRANCH="$(echo "${URL}" | cut -f 3 -d '@')"
 
-    local REV="`echo ${URL} | cut -f 2 -d '@'`"
-    local DIR="`echo ${URL} | cut -f 3 -d '@'`-${REV}"
+    basename ${BRANCH}
+}
+
+# -----------------------------------------
+srcdir()
+{
+    local DNLPATH="${1}"
+    local URLPROTO="$(urlproto "${DNLPATH}")"
+    local PROTO="$(echo "${URLPROTO}" | cut -f 1 -d ' ')"
+    local URL="$(echo "${URLPROTO}" | cut -f 2 -d ' ')"
+
+    local REV="$(echo "${URL}" | cut -f 2 -d '@')"
+    local DIR="$(repodir "${URL}")-${REV}"
+    local FILE
 
     case "${PROTO}" in
 	svn|git)
 	    echo "${DIR}"
 	    ;;
 	*)
-	    local FILE="`basename ${DNLPATH}`"
-	    echo $FILE | sed -e 's/\.tar\..*//g'
+	    FILE="$(basename "${DNLPATH}")"
+	    echo "${FILE}" | sed -e 's/\.tar\..*//g'
 	    ;;
     esac
 }
 
 # -----------------------------------------
-function download()
+download()
 {
-    local DNLPATH=${1}
-    local URLPROTO=$(urlproto ${DNLPATH})
-    local PROTO="`echo ${URLPROTO} | cut -f 1 -d ' '`"
-    local URL="`echo ${URLPROTO} | cut -f 2 -d ' '`"
+    local DNLPATH="${1}"
+    local URLPROTO="$(urlproto "${DNLPATH}")"
+    local PROTO="$(echo "${URLPROTO}" | cut -f 1 -d ' ')"
+    local URL="$(echo "${URLPROTO}" | cut -f 2 -d ' ')"
 
     case "${PROTO}" in
 	svn)
-	    download_svn ${URL}
+	    download_svn "${URL}"
 	    ;;
 	git)
-	    download_git ${URL}
+	    download_git "${URL}"
 	    ;;
 	*)
-	    download_web ${URL}
+	    download_web "${URL}"
 	    ;;
     esac
 }
 
 # -----------------------------------------
-function download_web()
+download_web()
 {
-    local FILE="`basename ${1}`"
+    local FILE="$(basename "${1}")"
 
     if [ ! -e "${FILE}" ]
     then
@@ -130,13 +144,13 @@ function download_web()
 }
 
 # -----------------------------------------
-function download_svn()
+download_svn()
 {
-    local URL=${1}
+    local URL="${1}"
 
-    local SVN_URL="`echo ${URL} | cut -f 1 -d '@'`"
-    local SVN_REV="`echo ${URL} | cut -f 2 -d '@'`"
-    local SVN_DIR="`echo ${URL} | cut -f 3 -d '@'`-${SVN_REV}"
+    local SVN_URL="$(echo "${URL}" | cut -f 1 -d '@')"
+    local SVN_REV="$(echo "${URL}" | cut -f 2 -d '@')"
+    local SVN_DIR="$(echo "${URL}" | cut -f 3 -d '@')-${SVN_REV}"
 
     if [ ! -d "${SVN_DIR}" ]
     then
@@ -148,20 +162,21 @@ function download_svn()
 }
 
 # -----------------------------------------
-function download_git()
+download_git()
 {
-    local URL=${1}
+    local URL="${1}"
 
-    local GIT_URL="`echo ${URL} | cut -f 1 -d '@'`"
-    local GIT_HASH="`echo ${URL} | cut -f 2 -d '@'`"
-    local GIT_DIR="`echo ${URL} | cut -f 3 -d '@'`-${GIT_HASH}"
+    local GIT_URL="$(echo "${URL}" | cut -f 1 -d '@')"
+    local GIT_HASH="$(echo "${URL}" | cut -f 2 -d '@')"
+    local GIT_BRANCH="$(echo "${URL}" | cut -f 3 -d '@')"
+    local GIT_DIR="$(repodir "${URL}")-${GIT_HASH}"
 
     if [ ! -d "${GIT_DIR}" ]
     then
 	print_info "GIT CLONE: git clone ${GIT_URL} ${GIT_DIR}; hash: ${GIT_HASH}"
-	git clone ${GIT_URL} ${GIT_DIR}
-	cd ${GIT_DIR}
-	git checkout ${GIT_HASH}
+	git clone "${GIT_URL}" --branch "${GIT_BRANCH}" --single-branch "${GIT_DIR}"
+	cd ${GIT_DIR} || exit
+	git checkout "${GIT_HASH}"
 	cd ..
     else
 	print_info "GIT dir already exists: ${GIT_DIR}"
@@ -169,16 +184,16 @@ function download_git()
 }
 
 # -----------------------------------------
-function download_all()
+download_all()
 {
     for DWN in ${ALL_DNADR}
     do
-	download ${DWN}
+	download "${DWN}"
     done
 }
 
 # -----------------------------------------
-function exec_stage()
+exec_stage()
 {
     if [ ! -e stage_${1} ]
     then
@@ -195,20 +210,20 @@ function exec_stage()
 }
 
 # -----------------------------------------
-function extract()
+extract()
 {
-    local DNLPATH=${1}
-    local URLPROTO=$(urlproto ${DNLPATH})
-    local PROTO="`echo ${URLPROTO} | cut -f 1 -d ' '`"
-    local REPO="`echo ${URLPROTO} | cut -f 2 -d ' '`"
-    local REPO_DIR="`srcdir ${DNLPATH}`"
+    local DNLPATH="${1}"
+    local URLPROTO="$(urlproto ${DNLPATH})"
+    local PROTO="$(echo ${URLPROTO} | cut -f 1 -d ' ')"
+    local REPO="$(echo ${URLPROTO} | cut -f 2 -d ' ')"
+    local REPO_DIR="$(srcdir ${DNLPATH})"
 
     case "${PROTO}" in
 	svn|git)
 	    print_info "No need to unpack repo ${REPO}"
 	    ;;
 	*)
-	    local FILE="`basename ${1}`"
+	    local FILE="$(basename ${1})"
 	    local DIR="${FILE}"
 	    DIR=${DIR%%.tar.*}
 	    if [ ! -e "${DIR}" ]; then
@@ -224,8 +239,8 @@ function extract()
 	svn|git)
 	    print_info "Checking for bootstrap script"
 	    cd ${REPO_DIR}
-	    BOOTSTRAP="`find . -maxdepth 1 -name '*bootstrap*'`"
-	    if [ ! -z "${BOOTSTRAP}" ]; then
+	    BOOTSTRAP="$(find . -maxdepth 1 -name '*bootstrap*')"
+	    if [ -n "${BOOTSTRAP}" ]; then
 		print_info "Running bootstrap ${BOOTSTRAP}"
 		./${BOOTSTRAP}
 	    else
@@ -239,47 +254,47 @@ function extract()
 }
 
 # -----------------------------------------
-function extract_all()
+extract_all()
 {
     for EXT in ${ALL_DNADR}
     do
-	extract ${EXT}
+	extract "${EXT}"
     done
 }
 
 # -----------------------------------------
-function get_processor_count()
+get_processor_count()
 {
-    echo "`cat /proc/cpuinfo | grep processor | wc -l`"
+    nproc
 }
 
 # -----------------------------------------
-function print_info()
+print_info()
 {
     echo "iii ${1}"
 }
 
 # -----------------------------------------
-function print_details()
+print_details()
 {
     echo "----- Running: ${1} -----"
     echo "  ${2}"
 }
 
 # -----------------------------------------
-function print_stepinfo()
+print_stepinfo()
 {
     echo "*** ${1}"
 }
 
 # -----------------------------------------
-function print_uinfo()
+print_uinfo()
 {
     echo ">>> ${1}"
 }
 
 # -----------------------------------------
-function run()
+run()
 {
     echo -e "BUILDING TOOLCHAIN FOR: ${TARGET}\n"
     echo -e "PATH:\t\t\t ${PATH}\n"
@@ -296,7 +311,7 @@ function run()
     ALL_STEPS="${STEPS_GEN} ${STEPS_PREREQ} ${STEPS}"
     print_uinfo "script will perform following steps: ${ALL_STEPS}"
     echo "press RETURN key to continue..."
-    read
+    read -r
     for STEP in ${ALL_STEPS}
     do
 	exec_stage ${STEP}
@@ -307,22 +322,22 @@ function run()
     rm -rf ${PREFIX}/prereqs
 
     echo ">>> ALL FINISHED <<<"
-    read
+    read -r
 }
 
 # -----------------------------------------
-function show_info()
+show_info()
 {
     prereq_info
     echo
     target_info
     echo
     echo "press RETURN key to continue..."
-    read
+    read -r
 }
 
 # -----------------------------------------
-function set_buildflags_base()
+set_buildflags_base()
 {
     export CFLAGS="${BASE_CFLAGS}"
     export CXXFLAGS="${CFLAGS}"
@@ -331,45 +346,45 @@ function set_buildflags_base()
 }
 
 # -----------------------------------------
-function clear_buildflags()
+clear_buildflags()
 {
     unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
 }
 
 # -----------------------------------------
-function configure_binutils()
+configure_binutils()
 {
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $@"
+    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $*"
     print_details "binutils" "configure ${ARGS}"
 
-    SDIR="`srcdir ${BINUTILS_DNADR}`"
+    SDIR="$(srcdir ${BINUTILS_DNADR})"
     ../${SDIR}/configure ${ARGS}
 }
 
 # -----------------------------------------
-function configure_gcc()
+configure_gcc()
 {
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GENOPTSGCC} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --enable-languages="${CONF_LANG}" $@"
+    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GENOPTSGCC} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --enable-languages=${CONF_LANG} $*"
     print_details "gcc" "configure ${ARGS}"
 
-    SDIR="`srcdir ${GCC_DNADR}`"
+    SDIR="$(srcdir "${GCC_DNADR}")"
     ../${SDIR}/configure ${ARGS}
 }
 
 # -----------------------------------------
-function configure_gen()
+configure_gen()
 {
-    DIR=${1}
+    DIR="${1}"
     shift
 
-    ARGS="${CONF_PRFX} $@"
+    ARGS="${CONF_PRFX} $*"
     print_details "${DIR}" "configure ${ARGS}"
 
     ../${DIR}/configure ${ARGS}
 }
 
 # -----------------------------------------
-function stage_binutils-generic()
+stage_binutils_generic()
 {
     cd ${BUILDDIR}/build-binutils
     set_buildflags_base
@@ -382,13 +397,13 @@ function stage_binutils-generic()
 }
 
 # generic environment configuration
-CURDIR=`pwd`
+CURDIR=$(pwd)
 ROOTDIR=${CURDIR}/..
 source ${CURDIR}/../VERSIONS.sh
-HOST=`gcc -dumpmachine`
-TARGET=`basename ${CURDIR}`
-PREFIX=`abspath ${CURDIR}/../tc_${TARGET}`
-PREFIX_PREREQS="${PREFIX}/prereqs"
+HOST=$(gcc -dumpmachine)
+TARGET=$(basename "${CURDIR}")
+PREFIX=$(abspath ${CURDIR}/../tc_${TARGET})
+PREFIX_PREREQS=${PREFIX}/prereqs
 PATH="${PREFIX}/bin:${PATH}"
 BUILDDIR=${BUILDDIR:-/tmp/tc_${TARGET}-build}
 JOBS=$(get_processor_count)
@@ -413,7 +428,7 @@ CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
 STEPS_GEN="download unpack mkbuilddir"
 
 # RUN
-if [ `whoami` == "root" ]
+if [ "$(whoami)" == "root" ]
 then
     echo "ERROR: This script cannot be run as root user!"
     exit

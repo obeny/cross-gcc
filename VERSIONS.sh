@@ -1,3 +1,5 @@
+#!/bin/sh
+
 # toolchain main component versions
 BINUTILS_VER="2.41"
 #GCC_VER="13.2.0"
