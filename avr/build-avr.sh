@@ -11,12 +11,13 @@ source ../common.sh
 # package versions
 #LIBC_VER="2.1.0"
 LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@55e8cac69935657bcd3e4d938750960c757844c3@main"
-AVRDUDE_VER="7.0"
+AVRDUDE_VER="7.2"
 
 # download addresses
 #LIBC_DNADR="http://download.savannah.gnu.org/releases/avr-libc/avr-libc-${LIBC_VER}.tar.bz2"
 LIBC_DNADR="$LIBC_VER"
-AVRDUDE_DNADR="http://download.savannah.gnu.org/releases/avrdude/avrdude-${AVRDUDE_VER}.tar.gz"
+#AVRDUDE_DNADR="http://download.savannah.gnu.org/releases/avrdude/avrdude-${AVRDUDE_VER}.tar.gz"
+AVRDUDE_DNADR="https://github.com/avrdudes/avrdude/archive/refs/tags/v${AVRDUDE_VER}.tar.gz;avrdude-${AVRDUDE_VER}"
 
 ALL_DNADR+="$LIBC_DNADR $AVRDUDE_DNADR"
 
@@ -73,7 +74,7 @@ function stage_avr_libc()
     remove_bdir build-libc || die "removing builddir failed..."
 }
 
-function stage_avrdude()
+function stage_avrdude_autotools()
 {
     set_buildflags_base
     cd ${BUILDDIR}/build-avrdude || exit
@@ -83,6 +84,24 @@ function stage_avrdude()
     make -j1 install || die "avrdude installation failed..."
 
     remove_bdir build-avrdude || die "removing builddir failed..."
+}
+
+function stage_avrdude_cmake()
+{
+    set_buildflags_base
+    cd ${BUILDDIR}/build-avrdude || exit
+
+    configure_cmake_gen "$(srcdir ${AVRDUDE_DNADR})" || die "avrdude cmake configuration failed..."
+    run_make || die "avrdude make failed..."
+    make -j1 install || die "avrdude installation failed..."
+
+    #remove_bdir build-avrdude || die "removing builddir failed..."
+}
+
+function stage_avrdude()
+{
+    #stage_avrdude_autotools
+    stage_avrdude_cmake
 }
 
 run
