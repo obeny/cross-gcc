@@ -427,12 +427,23 @@ CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
 
 STEPS_GEN="download unpack mkbuilddir"
 
+REQUIRED_CMDS="makeinfo yacc flex m4 make gcc pkg-config"
+
 # RUN
+# user check
 if [ "$(whoami)" == "root" ]
 then
     echo "ERROR: This script cannot be run as root user!"
-    exit
+    exit 255
 fi
+
+# system tools check
+for cmd in ${REQUIRED_CMDS}; do
+    if [[ -z $(which ${cmd}) ]]; then
+	echo "ERROR: Mandatory command '${cmd}' not found!"
+	exit 255
+    fi
+done
 
 source ${CURDIR}/../prereqs.sh
 export PATH
