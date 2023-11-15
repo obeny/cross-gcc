@@ -96,14 +96,20 @@ srcdir()
     local REV="$(echo "${URL}" | cut -f 2 -d '@')"
     local DIR="$(repodir "${URL}")-${REV}"
     local FILE
+    local CUSTOM_DIR
 
     case "${PROTO}" in
 	svn|git)
 	    echo "${DIR}"
 	    ;;
 	*)
-	    FILE="$(basename "${DNLPATH}")"
-	    echo "${FILE}" | sed -e 's/\.tar\..*//g'
+	    if echo "${DNLPATH}" | grep -q ";"; then
+		CUSTOM_DIR="$(echo "${DNLPATH}" | cut -d ";" -f 2)"
+		echo "${CUSTOM_DIR}"
+	    else
+		FILE="$(basename "${DNLPATH}")"
+		echo "${FILE}" | sed -e 's/\.tar\..*//g'
+	    fi
 	    ;;
     esac
 }
@@ -133,11 +139,13 @@ download()
 download_web()
 {
     local FILE="$(basename "${1}")"
-
+    local URL="${1}"
+    FILE=${FILE%%;*}
+    URL=${URL%%;*}
     if [ ! -e "${FILE}" ]
     then
 	print_uinfo "downloading: ${FILE}"
-	wget --no-check-certificate "${1}" || die "download failed: ${FILE}"
+	wget --no-check-certificate "${URL}" || die "download failed: ${FILE}"
     else
 	print_info "file already exists: ${FILE}"
     fi
@@ -224,6 +232,7 @@ extract()
 	    ;;
 	*)
 	    local FILE="$(basename ${1})"
+	    FILE=${FILE%%;*}
 	    local DIR="${FILE}"
 	    DIR=${DIR%%.tar.*}
 	    if [ ! -e "${DIR}" ]; then
