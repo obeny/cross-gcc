@@ -384,6 +384,18 @@ configure_gen()
 }
 
 # -----------------------------------------
+configure_cmake_gen()
+{
+    DIR="${1}"
+    shift
+
+    ARGS="${CMAKE_BASE} $*"
+    print_details "${DIR}" "cmake ${ARGS}"
+
+    cmake ${ARGS} ../${DIR}
+}
+
+# -----------------------------------------
 stage_binutils_generic()
 {
     cd ${BUILDDIR}/build-binutils
@@ -424,6 +436,9 @@ CONF_GENOPTS="--enable-lto"
 CONF_GENOPTSGCC_PREREQ="--with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} --with-libelf=${PREFIX_PREREQS}"
 CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --enable-fixed-point --enable-static --disable-threads --disable-tls --disable-decimal-float --disable-shared"
 CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
+
+#generic cmake configuration options
+CMAKE_BASE="-D CMAKE_VERBOSE_MAKEFILE=TRUE -D CMAKE_INSTALL_PREFIX=${PREFIX} -D CMAKE_BUILD_TYPE=Release"
 
 STEPS_GEN="download unpack mkbuilddir"
 
