@@ -68,7 +68,7 @@ stage_pr_mpfr()
     prereq_set_buildflags
     cd ${BUILDDIR}/build-mpfr || exit
 
-    configure_gen "$(srcdir ${MPFR_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --target=${TARGET} --enable-static --disable-shared --disable-nls --with-gmp=${PREFIX_PREREQS} || die "prerequisite mpfr configuration failed..."
+    configure_gen "$(srcdir ${MPFR_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls --with-gmp=${PREFIX_PREREQS} || die "prerequisite mpfr configuration failed..."
     run_make || die "prerequisite mpfr make failed..."
     make -j1 install || die "prerequisite mpfr installation failed..."
 
@@ -81,7 +81,7 @@ stage_pr_mpc()
     prereq_set_buildflags
     cd ${BUILDDIR}/build-mpc || exit
 
-    configure_gen "$(srcdir ${MPC_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --target=${TARGET} --enable-static --disable-shared --disable-nls --with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} || die "prerequisite mpc configuration failed..."
+    configure_gen "$(srcdir ${MPC_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls --with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} || die "prerequisite mpc configuration failed..."
     run_make || die "prerequisite mpc make failed..."
     make -j1 install || die "prerequisite mpc installation failed..."
 
@@ -94,7 +94,7 @@ stage_pr_isl()
     prereq_set_buildflags
     cd ${BUILDDIR}/build-isl || exit
 
-    configure_gen "$(srcdir ${ISL_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --target=${TARGET} --enable-static --disable-shared --disable-nls --with-gmp-prefix=${PREFIX_PREREQS} || die "prerequisite isl configuration failed..."
+    configure_gen "$(srcdir ${ISL_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls --with-gmp-prefix=${PREFIX_PREREQS} || die "prerequisite isl configuration failed..."
     run_make || die "prerequisite isl make failed..."
     make -j1 install || die "prerequisite isl installation failed..."
 
@@ -107,7 +107,7 @@ stage_pr_expat()
     prereq_set_buildflags
     cd ${BUILDDIR}/build-expat || exit
 
-    configure_gen "$(srcdir ${EXPAT_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --target=${TARGET} --enable-static --disable-shared --disable-nls || die "prerequisite expat configuration failed..."
+    configure_gen "$(srcdir ${EXPAT_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls || die "prerequisite expat configuration failed..."
     run_make || die "prerequisite expat make failed..."
     make -j1 install || die "prerequisite expat installation failed..."
 
@@ -120,7 +120,7 @@ stage_pr_elfutils()
     prereq_set_buildflags
     cd ${BUILDDIR}/build-elfutils || exit
 
-    configure_gen "$(srcdir ${ELFUTILS_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --target=${TARGET} --enable-static --disable-shared --disable-nls --disable-debuginfod --without-bzlib --without-lzma --without-zstd || die "prerequisite elfutils configuration failed..."
+    configure_gen "$(srcdir ${ELFUTILS_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --disable-nls --disable-debuginfod --disable-libdebuginfod --without-bzlib --without-lzma --without-zstd || die "prerequisite elfutils configuration failed..."
     run_make || die "prerequisite elfutils make failed..."
     make -j1 install || die "prerequisite elfutils installation failed..."
 
