@@ -10,17 +10,17 @@ source ../common.sh
 
 # package versions
 #NEWLIB_VER="4.3.0.20230120"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@324ace778f70e3e89d16c5460d2f9b4454acddb2@main"
-GDB_VER="13.2"
-OPENOCD_VER="0.12.0"
-#OPENOCD_VER="git@git://git.code.sf.net/p/openocd/code@4dbcb1e79d94a113af9c3da9c6f172782515f35e@openocd"
+NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@1a177610d8e181d09206a5a8ce2d873822751657@main"
+GDB_VER="14.1"
+#OPENOCD_VER="0.12.0"
+OPENOCD_VER="git@https://github.com/openocd-org/openocd.git@357996d99626170c11cb896be91c4cdc2afbca8d@master"
 
 # download addresses
 #NEWLIB_DNADR="ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz"
 NEWLIB_DNADR="${NEWLIB_VER}"
 GDB_DNADR="http://ftp.gnu.org/gnu/gdb/gdb-${GDB_VER}.tar.xz"
-OPENOCD_DNADR="http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2"
-#OPENOCD_DNADR="${OPENOCD_VER}"
+#OPENOCD_DNADR="http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2"
+OPENOCD_DNADR="${OPENOCD_VER}"
 
 ALL_DNADR+="$NEWLIB_DNADR $GDB_DNADR $OPENOCD_DNADR"
 
