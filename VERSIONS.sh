@@ -3,7 +3,8 @@
 # toolchain main component versions
 BINUTILS_VER="2.41"
 #GCC_VER="13.2.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@28d9e033a8e95c024e27cb495db610aac37a0f88@releases/gcc-13"
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@e6ade7fb8a8595d7c5c2520c8ed497dbbe37ab3f@releases/gcc-13"
+#GCC_VER="git@git://gcc.gnu.org/git/gcc.git@a5d2bb333043bda0cc7ba6e36b26205e7f292d40@master"
 
 # toolchain package urls
 BINUTILS_DNADR="http://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.bz2"
