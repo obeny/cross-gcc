@@ -1,9 +1,9 @@
 #!/bin/sh
 
 # toolchain main component versions
-BINUTILS_VER="2.41"
+BINUTILS_VER="2.42"
 #GCC_VER="13.2.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@e6ade7fb8a8595d7c5c2520c8ed497dbbe37ab3f@releases/gcc-13"
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@acafe0f9824e77f1259de1e833886003bf8a6864@releases/gcc-13" #20240224
 #GCC_VER="git@git://gcc.gnu.org/git/gcc.git@a5d2bb333043bda0cc7ba6e36b26205e7f292d40@master"
 
 # toolchain package urls
@@ -12,12 +12,12 @@ BINUTILS_DNADR="http://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.bz2
 GCC_DNADR="$GCC_VER"
 
 # prerequisities versions
-ZLIB_VER="1.3"
+ZLIB_VER="1.3.1"
 GMP_VER="6.3.0"
 MPFR_VER="4.2.1"
 MPC_VER="1.3.1"
 ISL_VER="0.26"
-EXPAT_VER="2.5.0"
+EXPAT_VER="2.6.0"
 ELFUTILS_VER="0.190"
 
 # prerequisities package urls
