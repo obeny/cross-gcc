@@ -10,7 +10,7 @@ source ../common.sh
 
 # package versions
 #LIBC_VER="2.1.0"
-LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@22d588c80066102993263018d5324d1424c13f0d@main"
+LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@129a556db314f3cd2cc22859a7ba72c512b60865@main" #2024-03-24
 AVRDUDE_VER="7.3"
 
 # download addresses
