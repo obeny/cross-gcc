@@ -3,7 +3,7 @@
 # toolchain main component versions
 BINUTILS_VER="2.42"
 #GCC_VER="13.2.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@acafe0f9824e77f1259de1e833886003bf8a6864@releases/gcc-13" #20240224
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@30fd57d49f2847b474519a3d6325b5b2bb5e564c@releases/gcc-13" #20240325
 #GCC_VER="git@git://gcc.gnu.org/git/gcc.git@a5d2bb333043bda0cc7ba6e36b26205e7f292d40@master"
 
 # toolchain package urls
@@ -17,8 +17,8 @@ GMP_VER="6.3.0"
 MPFR_VER="4.2.1"
 MPC_VER="1.3.1"
 ISL_VER="0.26"
-EXPAT_VER="2.6.0"
-ELFUTILS_VER="0.190"
+EXPAT_VER="2.6.2"
+ELFUTILS_VER="0.191"
 
 # prerequisities package urls
 ZLIB_DNADR="http://zlib.net/zlib-${ZLIB_VER}.tar.xz"
