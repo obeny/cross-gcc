@@ -13,7 +13,7 @@ source ../common.sh
 NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@31f7cd1e433247015c08d43504f09aa70a94b76b@main" #4.4.0, cygwin-3.5.0
 GDB_VER="14.2"
 #OPENOCD_VER="0.12.0"
-OPENOCD_VER="git@https://github.com/openocd-org/openocd.git@a35e254c5383008cdacf7838a777f7f17af5eeb1@master" #0.12+
+OPENOCD_VER="git@https://github.com/openocd-org/openocd.git@2c8376b79d104a855bd3a559e59edf330309bcad@master" #0.12+
 
 # download addresses
 #NEWLIB_DNADR="ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz"
