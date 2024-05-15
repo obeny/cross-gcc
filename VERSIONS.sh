@@ -2,8 +2,8 @@
 
 # toolchain main component versions
 BINUTILS_VER="2.42"
-#GCC_VER="13.2.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@54a235e636305526bf77f102ef673bb8f6b46d53@releases/gcc-13" #20240412
+#GCC_VER="14.1.0"
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@7c49e45fbf845d197b4cb63b3ee2b4ef9214485f@releases/gcc-14" #20240515
 #GCC_VER="git@git://gcc.gnu.org/git/gcc.git@a5d2bb333043bda0cc7ba6e36b26205e7f292d40@master"
 
 # toolchain package urls
