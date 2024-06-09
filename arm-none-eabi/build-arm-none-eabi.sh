@@ -13,7 +13,7 @@ source ../common.sh
 NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@31f7cd1e433247015c08d43504f09aa70a94b76b@main" #4.4.0, cygwin-3.5.0
 GDB_VER="14.2"
 #OPENOCD_VER="0.12.0"
-OPENOCD_VER="git@https://github.com/openocd-org/openocd.git@2c8376b79d104a855bd3a559e59edf330309bcad@master" #0.12+
+OPENOCD_VER="git@https://github.com/obeny/openocd.git@76966a72f0647e8a6e9a5d5b51be873b0661503a@master-custom" #0.12+, 2024-06-17
 
 # download addresses
 #NEWLIB_DNADR="ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz"
@@ -183,7 +183,7 @@ function stage_openocd()
     set_buildflags_base
     cd ${BUILDDIR}/build-openocd || exit
 
-    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PRFX} --enable-ftdi --enable-internal-jimtcl || die "openocd configuration failed..."
+    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PRFX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink || die "openocd configuration failed..."
 
     run_make || die "openocd make failed..."
     make -j1 install || die "openocd installation failed..."
