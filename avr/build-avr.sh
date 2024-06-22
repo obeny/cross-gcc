@@ -74,19 +74,7 @@ function stage_avr_libc()
     remove_bdir build-libc || die "removing builddir failed..."
 }
 
-function stage_avrdude_autotools()
-{
-    set_buildflags_base
-    cd ${BUILDDIR}/build-avrdude || exit
-
-    configure_gen "$(srcdir ${AVRDUDE_DNADR})" ${CONF_PRFX} --disable-parport || die "avrdude configuration failed..."
-    run_make || die "avrdude make failed..."
-    make -j1 install || die "avrdude installation failed..."
-
-    remove_bdir build-avrdude || die "removing builddir failed..."
-}
-
-function stage_avrdude_cmake()
+function stage_avrdude()
 {
     set_buildflags_base
     cd ${BUILDDIR}/build-avrdude || exit
@@ -95,13 +83,7 @@ function stage_avrdude_cmake()
     run_make || die "avrdude make failed..."
     make -j1 install || die "avrdude installation failed..."
 
-    #remove_bdir build-avrdude || die "removing builddir failed..."
-}
-
-function stage_avrdude()
-{
-    #stage_avrdude_autotools
-    stage_avrdude_cmake
+    remove_bdir build-avrdude || die "removing builddir failed..."
 }
 
 run
