@@ -15,11 +15,11 @@ AVRDUDE_VER="7.3"
 
 # download addresses
 #LIBC_DNADR="http://download.savannah.gnu.org/releases/avr-libc/avr-libc-${LIBC_VER}.tar.bz2"
-LIBC_DNADR="$LIBC_VER"
+LIBC_DNADR="${LIBC_VER}"
 #AVRDUDE_DNADR="http://download.savannah.gnu.org/releases/avrdude/avrdude-${AVRDUDE_VER}.tar.gz"
 AVRDUDE_DNADR="https://github.com/avrdudes/avrdude/archive/refs/tags/v${AVRDUDE_VER}.tar.gz;avrdude-${AVRDUDE_VER}"
 
-ALL_DNADR+="$LIBC_DNADR $AVRDUDE_DNADR"
+ALL_DNADR+="${LIBC_DNADR} ${AVRDUDE_DNADR}"
 
 # steps definition
 STEPS+="avr_libc avrdude"

@@ -22,7 +22,7 @@ GDB_DNADR="http://ftp.gnu.org/gnu/gdb/gdb-${GDB_VER}.tar.xz"
 #OPENOCD_DNADR="http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2"
 OPENOCD_DNADR="${OPENOCD_VER}"
 
-ALL_DNADR+="$NEWLIB_DNADR $GDB_DNADR $OPENOCD_DNADR"
+ALL_DNADR+="${NEWLIB_DNADR} ${GDB_DNADR} ${OPENOCD_DNADR}"
 
 # steps definition
 STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"

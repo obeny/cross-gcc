@@ -27,7 +27,7 @@ stage_unpack()
 # -----------------------------------------
 abspath()
 {
-    readlink -f "$1"
+    readlink -f "${1}"
 }
 
 # -----------------------------------------
@@ -474,4 +474,4 @@ export PATH
 
 # default variable values
 STEPS+="binutils gcc "
-ALL_DNADR+="$BINUTILS_DNADR $GCC_DNADR "
+ALL_DNADR+="${BINUTILS_DNADR} ${GCC_DNADR} "

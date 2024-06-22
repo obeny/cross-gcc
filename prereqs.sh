@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034,SC2086,SC2153
 
 STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
-ALL_DNADR="$ZLIB_DNADR $GMP_DNADR $MPFR_DNADR $MPC_DNADR $ISL_DNADR $EXPAT_DNADR $ELFUTILS_DNADR "
+ALL_DNADR="${ZLIB_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
 
 CFLAGS_PREREQ="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections"
 LDFLAGS_PREREQ="-Wl,-O1"
