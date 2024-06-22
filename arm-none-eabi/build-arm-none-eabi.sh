@@ -96,6 +96,9 @@ function stage_newlib-full()
 
 function stage_newlib-nano()
 {
+    cd `srcdir ${NEWLIB_DNADR}`
+    do_patch ${ROOTDIR}/_patches/newlib-unwind.patch 1
+
     clear_buildflags
     export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
     cd ${BUILDDIR}/build-libc-nano || exit
