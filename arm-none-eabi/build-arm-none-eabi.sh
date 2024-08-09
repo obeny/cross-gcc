@@ -25,18 +25,21 @@ OPENOCD_DNADR="${OPENOCD_VER}"
 ALL_DNADR+="${NEWLIB_DNADR} ${GDB_DNADR} ${OPENOCD_DNADR}"
 
 # steps definition
-STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"
+STEPS+="newlib-patch newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"
 
 # configure options
 CONF_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
 
 # newlibc configuration
-LIBC_FULL_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-io-long-long --enable-newlib-io-c99-formats --enable-newlib-reent-check-verify --enable-newlib-register-fini --enable-newlib-retargetable-locking \
-    --disable-newlib-fvwrite-in-streamio --disable-newlib-fseek-optimization --disable-newlib-wide-orient --disable-newlib-unbuf-stream-opt"
-LIBC_NANO_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-reent-check-verify --enable-newlib-reent-small --enable-newlib-retargetable-locking --disable-newlib-fvwrite-in-streamio --disable-newlib-fseek-optimization --disable-newlib-wide-orient \
-    --enable-newlib-nano-malloc --disable-newlib-unbuf-stream-opt --enable-lite-exit --enable-newlib-global-atexit --enable-newlib-nano-formatted-io"
+LIBC_COMMON_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-reent-check-verify --enable-newlib-retargetable-locking \
+    --disable-newlib-fvwrite-in-streamio --disable-newlib-fseek-optimization --disable-newlib-wide-orient"
 
-LIBC_CFLAGS="-g -fdata-sections -ffunction-sections"
+LIBC_FULL_OPTS="${LIBC_COMMON_OPTS} --enable-newlib-io-long-long --enable-newlib-io-c99-formats --enable-newlib-register-fini \
+    --disable-newlib-unbuf-stream-opt"
+LIBC_NANO_OPTS="${LIBC_COMMON_OPTS} --enable-newlib-reent-small --enable-newlib-nano-malloc --disable-newlib-unbuf-stream-opt \
+    --enable-lite-exit --enable-newlib-global-atexit --enable-newlib-nano-formatted-io"
+
+LIBC_CFLAGS="-g -fdata-sections -ffunction-sections -pipe"
 
 #
 # MAIN
@@ -75,13 +78,20 @@ function stage_gcc()
     cd ${PREFIX}/${TARGET} || exit
 }
 
+function stage_newlib-patch()
+{
+    cd "$(srcdir "${NEWLIB_DNADR}")" || exit
+    do_patch ${ROOTDIR}/_patches/newlib-unwind.patch 1
+}
+
 function stage_newlib-full()
 {
     clear_buildflags
     export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
+    export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET}"
     cd ${BUILDDIR}/build-libc-full || exit
 
-    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} --disable-shared || die "newlib-full configuration failed..."
+    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} || die "newlib-full configuration failed..."
 
     run_make || die "newlib-full make failed..."
     make -j1 install || die "newlib-full installation failed..."
@@ -91,14 +101,12 @@ function stage_newlib-full()
 
 function stage_newlib-nano()
 {
-    cd `srcdir ${NEWLIB_DNADR}`
-    do_patch ${ROOTDIR}/_patches/newlib-unwind.patch 1
-
     clear_buildflags
     export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
+    export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET}"
     cd ${BUILDDIR}/build-libc-nano || exit
 
-    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --disable-shared --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
+    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
 
     run_make || die "newlib-nano make failed..."
     make -j1 install || die "newlib-nano installation failed..."
@@ -113,7 +121,7 @@ function stage_gcc-finish-full()
     export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
     export CXXFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS} -fno-exceptions"
 
-    configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
+    configure_gcc --with-newlib --with-headers=yes --enable-plugins \
     --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
@@ -131,7 +139,7 @@ function stage_gcc-finish-nano()
     export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
     export CXXFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS} -fno-exceptions"
 
-    configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
+    configure_gcc --with-newlib --with-headers=yes --enable-plugins \
     --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} || die "gcc-finish-nano configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
