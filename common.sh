@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC2001,SC2034,SC2086,SC2119,SC2120,SC2155,SC1091
+# shellcheck disable=SC1091,SC2001,SC2034,SC2086,SC2155
 
 # die if any error occured or variable is unset
 set -e
@@ -43,25 +43,24 @@ do_patch()
     local PFILE="${1}"
     local PLEVEL="${2}"
 
-    if [ -z "${PLEVEL}" ]
-    then
-	patch -p0 < "${PFILE}" || die "patching: ${PFILE} failed"
+    if [ -z "${PLEVEL}" ]; then
+        patch -p0 < "${PFILE}" || die "patching: ${PFILE} failed"
     else
-	patch -p"${PLEVEL}" < "${PFILE}" || die "patching: ${PFILE} failed"
+        patch -p"${PLEVEL}" < "${PFILE}" || die "patching: ${PFILE} failed"
     fi
 }
 
 # -----------------------------------------
 remove_bdir()
 {
-    cd ${BUILDDIR}
+    cd "${BUILDDIR}"
     rm -rf "${1}"
 }
 
 # -----------------------------------------
 run_make()
 {
-    make "${MAKEOPTS}" "$@"
+    make ${MAKEOPTS} "$@"
 }
 
 # -----------------------------------------
@@ -70,9 +69,9 @@ urlproto()
     local DPATH="${1}"
 
     if echo "${DPATH}" | grep -q '@'; then
-	echo "$(echo ${DPATH} | cut -f 1 -d '@') $(echo ${DPATH} | cut -f 2- -d '@')"
+        echo "$(echo ${DPATH} | cut -f 1 -d '@') $(echo ${DPATH} | cut -f 2- -d '@')"
     else
-	echo "web ${DPATH}"
+        echo "web ${DPATH}"
     fi
 }
 
@@ -82,7 +81,7 @@ repodir()
     local URL="${1}"
     local BRANCH="$(echo "${URL}" | cut -f 3 -d '@')"
 
-    basename ${BRANCH}
+    basename "${BRANCH}"
 }
 
 # -----------------------------------------
@@ -99,18 +98,18 @@ srcdir()
     local CUSTOM_DIR
 
     case "${PROTO}" in
-	svn|git)
-	    echo "${DIR}"
-	    ;;
-	*)
-	    if echo "${DNLPATH}" | grep -q ";"; then
-		CUSTOM_DIR="$(echo "${DNLPATH}" | cut -d ";" -f 2)"
-		echo "${CUSTOM_DIR}"
-	    else
-		FILE="$(basename "${DNLPATH}")"
-		echo "${FILE}" | sed -e 's/\.tar\..*//g'
-	    fi
-	    ;;
+    svn|git)
+        echo "${DIR}"
+        ;;
+    *)
+        if echo "${DNLPATH}" | grep -q ";"; then
+            CUSTOM_DIR="$(echo "${DNLPATH}" | cut -d ";" -f 2)"
+            echo "${CUSTOM_DIR}"
+        else
+            FILE="$(basename "${DNLPATH}")"
+            echo "${FILE}" | sed -e 's/\.tar\..*//g'
+        fi
+        ;;
     esac
 }
 
@@ -123,15 +122,15 @@ download()
     local URL="$(echo "${URLPROTO}" | cut -f 2 -d ' ')"
 
     case "${PROTO}" in
-	svn)
-	    download_svn "${URL}"
-	    ;;
-	git)
-	    download_git "${URL}"
-	    ;;
-	*)
-	    download_web "${URL}"
-	    ;;
+    svn)
+        download_svn "${URL}"
+        ;;
+    git)
+        download_git "${URL}"
+        ;;
+    *)
+        download_web "${URL}"
+        ;;
     esac
 }
 
@@ -142,12 +141,11 @@ download_web()
     local URL="${1}"
     FILE=${FILE%%;*}
     URL=${URL%%;*}
-    if [ ! -e "${FILE}" ]
-    then
-	print_uinfo "downloading: ${FILE}"
-	wget --no-check-certificate "${URL}" || die "download failed: ${FILE}"
+    if [ ! -e "${FILE}" ]; then
+        print_uinfo "downloading: ${FILE}"
+        wget --no-check-certificate "${URL}" || die "download failed: ${FILE}"
     else
-	print_info "file already exists: ${FILE}"
+        print_info "file already exists: ${FILE}"
     fi
 }
 
@@ -160,12 +158,11 @@ download_svn()
     local SVN_REV="$(echo "${URL}" | cut -f 2 -d '@')"
     local SVN_DIR="$(echo "${URL}" | cut -f 3 -d '@')-${SVN_REV}"
 
-    if [ ! -d "${SVN_DIR}" ]
-    then
-	print_info "SVN CHECKOUT: svn co -r ${SVN_REV} ${SVN_URL} ${SVN_DIR}"
-	svn co -r ${SVN_REV} ${SVN_URL} ${SVN_DIR} || die "SVN checkout failed ${SVN_DIR}"
+    if [ ! -d "${SVN_DIR}" ]; then
+        print_info "SVN CHECKOUT: svn co -r ${SVN_REV} ${SVN_URL} ${SVN_DIR}"
+        svn co -r ${SVN_REV} ${SVN_URL} ${SVN_DIR} || die "SVN checkout failed ${SVN_DIR}"
     else
-	print_info "SVN dir already exists: ${SVN_DIR}"
+        print_info "SVN dir already exists: ${SVN_DIR}"
     fi
 }
 
@@ -179,15 +176,14 @@ download_git()
     local GIT_BRANCH="$(echo "${URL}" | cut -f 3 -d '@')"
     local GIT_DIR="$(repodir "${URL}")-${GIT_HASH}"
 
-    if [ ! -d "${GIT_DIR}" ]
-    then
-	print_info "GIT CLONE: git clone ${GIT_URL} ${GIT_DIR}; hash: ${GIT_HASH}"
-	git clone "${GIT_URL}" --branch "${GIT_BRANCH}" --single-branch "${GIT_DIR}"
-	cd ${GIT_DIR} || exit
-	git checkout "${GIT_HASH}"
-	cd ..
+    if [ ! -d "${GIT_DIR}" ]; then
+        print_info "GIT CLONE: git clone ${GIT_URL} ${GIT_DIR}; hash: ${GIT_HASH}"
+        git clone "${GIT_URL}" --branch "${GIT_BRANCH}" --single-branch "${GIT_DIR}"
+        cd "${GIT_DIR}" || exit
+        git checkout "${GIT_HASH}"
+        cd ..
     else
-	print_info "GIT dir already exists: ${GIT_DIR}"
+        print_info "GIT dir already exists: ${GIT_DIR}"
     fi
 }
 
@@ -196,24 +192,23 @@ download_all()
 {
     for DWN in ${ALL_DNADR}
     do
-	download "${DWN}"
+        download "${DWN}"
     done
 }
 
 # -----------------------------------------
 exec_stage()
 {
-    if [ ! -e stage_${1} ]
-    then
-	print_stepinfo "running stage: ${1}"
-	stage_${1} || die "couldn't execute: stage_${1}"
-	print_info "stage: ${1} completed successfully"
+    if [ ! -e stage_${1} ]; then
+        print_stepinfo "running stage: ${1}"
+        stage_${1} || die "couldn't execute: stage_${1}"
+        print_info "stage: ${1} completed successfully"
 
-	cd ${BUILDDIR}
-	touch stage_${1}
-	env > stage_${1}.env
+        cd "${BUILDDIR}" || exit
+        touch stage_${1}
+        env > stage_${1}.env
     else
-	print_info " stage: ${1} already completed: skipping it..."
+        print_info " stage: ${1} already completed: skipping it..."
     fi
 }
 
@@ -227,38 +222,38 @@ extract()
     local REPO_DIR="$(srcdir ${DNLPATH})"
 
     case "${PROTO}" in
-	svn|git)
-	    print_info "No need to unpack repo ${REPO}"
-	    ;;
-	*)
-	    local FILE="$(basename ${1})"
-	    FILE=${FILE%%;*}
-	    local DIR="${FILE}"
-	    DIR=${DIR%%.tar.*}
-	    if [ ! -e "${DIR}" ]; then
-		print_uinfo "extracting: ${FILE}"
-		tar xf "${FILE}" || die "extraction failed: ${FILE}"
-	    else
-		print_info "source already exists: ${DIR}"
-	    fi
-	    ;;
+    svn|git)
+        print_info "No need to unpack repo ${REPO}"
+        ;;
+    *)
+        local FILE="$(basename ${1})"
+        FILE=${FILE%%;*}
+        local DIR="${FILE}"
+        DIR=${DIR%%.tar.*}
+        if [ ! -e "${DIR}" ]; then
+            print_uinfo "extracting: ${FILE}"
+            tar xf "${FILE}" || die "extraction failed: ${FILE}"
+        else
+            print_info "source already exists: ${DIR}"
+        fi
+        ;;
     esac
 
     case "${PROTO}" in
-	svn|git)
-	    print_info "Checking for bootstrap script"
-	    cd ${REPO_DIR}
-	    BOOTSTRAP="$(find . -maxdepth 1 -name '*bootstrap*')"
-	    if [ -n "${BOOTSTRAP}" ]; then
-		print_info "Running bootstrap ${BOOTSTRAP}"
-		./${BOOTSTRAP}
-	    else
-		print_info "No bootstrap found, skipping"
-	    fi
-	    cd ..
-	    ;;
-	*)
-	    ;;
+    svn|git)
+        print_info "Checking for bootstrap script"
+        cd "${REPO_DIR}" || exit
+        BOOTSTRAP="$(find . -maxdepth 1 -name '*bootstrap*')"
+        if [ -n "${BOOTSTRAP}" ]; then
+            print_info "Running bootstrap ${BOOTSTRAP}"
+            ./${BOOTSTRAP}
+        else
+            print_info "No bootstrap found, skipping"
+        fi
+        cd ..
+        ;;
+    *)
+        ;;
     esac
 }
 
@@ -267,7 +262,7 @@ extract_all()
 {
     for EXT in ${ALL_DNADR}
     do
-	extract "${EXT}"
+        extract "${EXT}"
     done
 }
 
@@ -286,8 +281,8 @@ print_info()
 # -----------------------------------------
 print_details()
 {
-    echo "----- Running: ${1} -----"
-    echo "  ${2}"
+    echo "----- Entering: '${1}' -----"
+    echo " running: '${2}'"
 }
 
 # -----------------------------------------
@@ -323,7 +318,7 @@ run()
     read -r
     for STEP in ${ALL_STEPS}
     do
-	exec_stage ${STEP}
+        exec_stage ${STEP}
     done
 
     # do the cleanup
@@ -361,6 +356,42 @@ clear_buildflags()
 }
 
 # -----------------------------------------
+cmake_gen()
+{
+    DIR="${1}"
+    shift
+
+    ARGS="${CMAKE_BASE} $*"
+    print_details "${DIR}" "cmake ${ARGS}"
+
+    cmake ${ARGS} ../${DIR}
+}
+
+# -----------------------------------------
+configure_gen()
+{
+    DIR="${1}"
+    shift
+
+    ARGS="${CONF_PREFIX} $*"
+    print_details "${DIR}" "configure ${ARGS}"
+
+    ../${DIR}/configure ${ARGS}
+}
+
+# -----------------------------------------
+configure_prereq()
+{
+    DIR="${1}"
+    shift
+
+    ARGS="${CONF_PREFIX_PREREQS} $*"
+    print_details "${DIR}" "configure ${ARGS}"
+
+    ../${DIR}/configure ${ARGS}
+}
+
+# -----------------------------------------
 configure_binutils()
 {
     ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $*"
@@ -381,37 +412,13 @@ configure_gcc()
 }
 
 # -----------------------------------------
-configure_gen()
-{
-    DIR="${1}"
-    shift
-
-    ARGS="${CONF_PRFX} $*"
-    print_details "${DIR}" "configure ${ARGS}"
-
-    ../${DIR}/configure ${ARGS}
-}
-
-# -----------------------------------------
-configure_cmake_gen()
-{
-    DIR="${1}"
-    shift
-
-    ARGS="${CMAKE_BASE} $*"
-    print_details "${DIR}" "cmake ${ARGS}"
-
-    cmake ${ARGS} ../${DIR}
-}
-
-# -----------------------------------------
 stage_binutils_generic()
 {
     cd ${BUILDDIR}/build-binutils
     set_buildflags_base
 
-    configure_binutils || die "binutils configuration failed..."
-    run_make || die "binutils make failed..."
+    configure_binutils "" || die "binutils configuration failed..."
+    run_make "" || die "binutils make failed..."
     make -j1 install || die "binutils installation failed..."
 
     remove_bdir build-binutils || die "removing builddir failed..."
@@ -428,16 +435,21 @@ PREFIX_PREREQS=${PREFIX}/prereqs
 PATH="${PREFIX}/bin:${PATH}"
 BUILDDIR=${BUILDDIR:-/tmp/tc_${TARGET}-build}
 JOBS=$(get_processor_count)
-MAKEOPTS="-j${JOBS}"
+MAKEOPTS="-s -j${JOBS}"
 
-BASE_CFLAGS="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections -s -Wno-error -w"
+BASE_CFLAGS="-O2 -pipe -g0 -ffunction-sections -fdata-sections -s -Wno-error -w"
 BASE_LDFLAGS="-O1"
 BASE_CXXFLAGS="${BASE_CFLAGS}"
-BASE_CPPFLAGS="${BASE_CXXFLAGS}"
+BASE_CPPFLAGS=""
+
+# prefix configuration
+CONF_PREFIX="--prefix=${PREFIX}"
+CONF_PREFIX_PREREQS="--prefix=${PREFIX_PREREQS}"
+
+CMAKE_PREFIX="-D CMAKE_INSTALL_PREFIX=${PREFIX}"
 
 # generic configure options
 CONF_LANG="c,c++"
-CONF_PRFX="--prefix=${PREFIX}"
 CONF_DISLIB="--disable-libada --disable-libssp --disable-libmudflap --disable-libgomp --disable-libffi --disable-libquadmath"
 CONF_GNU="--with-gnu-as --with-gnu-ld"
 CONF_RELEASE="--enable-checking=release --with-pkgversion='CROSS-GCC'"
@@ -446,8 +458,8 @@ CONF_GENOPTSGCC_PREREQ="--with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQ
 CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --enable-fixed-point --enable-static --disable-threads --disable-tls --disable-decimal-float --disable-shared"
 CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
 
-#generic cmake configuration options
-CMAKE_BASE="-D CMAKE_VERBOSE_MAKEFILE=TRUE -D CMAKE_INSTALL_PREFIX=${PREFIX} -D CMAKE_BUILD_TYPE=Release"
+# generic cmake configuration options
+CMAKE_BASE="-D CMAKE_VERBOSE_MAKEFILE=TRUE ${CMAKE_PREFIX} -D CMAKE_BUILD_TYPE=Release"
 
 STEPS_GEN="download unpack mkbuilddir"
 
@@ -455,8 +467,7 @@ REQUIRED_CMDS="makeinfo yacc flex m4 make gcc pkg-config"
 
 # RUN
 # user check
-if [ "$(whoami)" == "root" ]
-then
+if [ "$(whoami)" == "root" ]; then
     echo "ERROR: This script cannot be run as root user!"
     exit 255
 fi
@@ -464,8 +475,8 @@ fi
 # system tools check
 for cmd in ${REQUIRED_CMDS}; do
     if [[ -z $(which ${cmd}) ]]; then
-	echo "ERROR: Mandatory command '${cmd}' not found!"
-	exit 255
+    echo "ERROR: Mandatory command '${cmd}' not found!"
+    exit 255
     fi
 done
 

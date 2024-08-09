@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+# shellcheck disable=SC2034
 
 # toolchain main component versions
 BINUTILS_VER="2.42"
@@ -11,7 +12,7 @@ BINUTILS_DNADR="http://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.bz2
 #GCC_DNADR="http://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz"
 GCC_DNADR="$GCC_VER"
 
-# prerequisities versions
+# prerequisite versions
 ZLIB_VER="1.3.1"
 GMP_VER="6.3.0"
 MPFR_VER="4.2.1"
@@ -20,7 +21,7 @@ ISL_VER="0.26"
 EXPAT_VER="2.6.2"
 ELFUTILS_VER="0.191"
 
-# prerequisities package urls
+# prerequisite package urls
 ZLIB_DNADR="http://zlib.net/zlib-${ZLIB_VER}.tar.xz"
 GMP_DNADR="https://gmplib.org/download/gmp/gmp-${GMP_VER}.tar.xz"
 MPFR_DNADR="https://www.mpfr.org/mpfr-current/mpfr-${MPFR_VER}.tar.xz"

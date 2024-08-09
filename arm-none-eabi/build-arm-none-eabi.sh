@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC2034,SC2086,SC2317,SC1091
+# shellcheck disable=SC1091,SC2086,SC2329
 
 # load framework
 source ../common.sh
@@ -28,7 +28,7 @@ ALL_DNADR+="${NEWLIB_DNADR} ${GDB_DNADR} ${OPENOCD_DNADR}"
 STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"
 
 # configure options
-CONF_COMMON="${CONF_PRFX} --target=${TARGET} --enable-multilib --enable-interwork"
+CONF_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
 
 # newlibc configuration
 LIBC_FULL_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-io-long-long --enable-newlib-io-c99-formats --enable-newlib-reent-check-verify --enable-newlib-register-fini --enable-newlib-retargetable-locking \
@@ -186,7 +186,7 @@ function stage_openocd()
     set_buildflags_base
     cd ${BUILDDIR}/build-openocd || exit
 
-    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PRFX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink || die "openocd configuration failed..."
+    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PREFIX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink || die "openocd configuration failed..."
 
     run_make || die "openocd make failed..."
     make -j1 install || die "openocd installation failed..."

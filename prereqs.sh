@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC2034,SC2086,SC2153
+# shellcheck disable=SC2034,SC2153
 
 STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
 ALL_DNADR="${ZLIB_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
@@ -11,7 +11,6 @@ prereq_set_buildflags()
 {
     export CFLAGS="${CFLAGS_PREREQ}"
     export CXXFLAGS="${CFLAGS}"
-    export CPPFLAGS="${CFLAGS}"
     export LDFLAGS="${LDFLAGS_PREREQ}"
     export CPPFLAGS=""
 }
@@ -30,16 +29,16 @@ prereq_info()
 
 stage_pr_mkbuilddirs()
 {
-    mkdir -p ${BUILDDIR}/build-{zlib,gmp,mpfr,mpc,isl,expat,elfutils}
+    mkdir -p "${BUILDDIR}"/build-{zlib,gmp,mpfr,mpc,isl,expat,elfutils}
 }
 
 stage_pr_zlib()
 {
     print_info "BUILDING prerequisite: zlib"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-zlib || exit
+    cd "${BUILDDIR}"/build-zlib || exit
 
-    configure_gen "$(srcdir ${ZLIB_DNADR})" --prefix=${PREFIX_PREREQS} --static || die "prerequisite zlib configuration failed..."
+    configure_prereq "$(srcdir "${ZLIB_DNADR}")" --static || die "prerequisite zlib configuration failed..."
     run_make || die "prerequisite zlib make failed..."
     make -j1 install || die "prerequisite zlib installation failed..."
 
@@ -50,9 +49,9 @@ stage_pr_gmp()
 {
     print_info "BUILDING prerequisite: gmp"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-gmp || exit
+    cd "${BUILDDIR}"/build-gmp || exit
 
-    configure_gen "$(srcdir ${GMP_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --enable-cxx --disable-shared --without-readline || die "prerequisite gmp configuration failed..."
+    configure_prereq "$(srcdir "${GMP_DNADR}")" --host="${HOST}" --enable-static --enable-cxx --disable-shared --without-readline || die "prerequisite gmp configuration failed..."
     run_make || die "prerequisite gmp make failed..."
     make -j1 install || die "prerequisite gmp installation failed..."
 
@@ -61,14 +60,14 @@ stage_pr_gmp()
 
 stage_pr_mpfr()
 {
-    cd "$(srcdir ${MPFR_DNADR})" || exit
-    #do_patch ${ROOTDIR}/_patches/mpfr-4.2.0-p12.patch 1
+    #cd "$(srcdir "${MPFR_DNADR}")" || exit
+    #do_patch "${ROOTDIR}"/_patches/mpfr-4.2.0-p12.patch 1
 
     print_info "BUILDING prerequisite: mpfr"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-mpfr || exit
+    cd "${BUILDDIR}"/build-mpfr || exit
 
-    configure_gen "$(srcdir ${MPFR_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls --with-gmp=${PREFIX_PREREQS} || die "prerequisite mpfr configuration failed..."
+    configure_prereq "$(srcdir "${MPFR_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls --with-gmp="${PREFIX_PREREQS}" || die "prerequisite mpfr configuration failed..."
     run_make || die "prerequisite mpfr make failed..."
     make -j1 install || die "prerequisite mpfr installation failed..."
 
@@ -79,9 +78,9 @@ stage_pr_mpc()
 {
     print_info "BUILDING prerequisite: mpc"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-mpc || exit
+    cd "${BUILDDIR}"/build-mpc || exit
 
-    configure_gen "$(srcdir ${MPC_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls --with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} || die "prerequisite mpc configuration failed..."
+    configure_prereq "$(srcdir "${MPC_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls --with-gmp="${PREFIX_PREREQS}" --with-mpfr="${PREFIX_PREREQS}" || die "prerequisite mpc configuration failed..."
     run_make || die "prerequisite mpc make failed..."
     make -j1 install || die "prerequisite mpc installation failed..."
 
@@ -92,9 +91,9 @@ stage_pr_isl()
 {
     print_info "BUILDING prerequisite: isl"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-isl || exit
+    cd "${BUILDDIR}"/build-isl || exit
 
-    configure_gen "$(srcdir ${ISL_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls --with-gmp-prefix=${PREFIX_PREREQS} || die "prerequisite isl configuration failed..."
+    configure_prereq "$(srcdir "${ISL_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls --with-gmp-prefix="${PREFIX_PREREQS}" || die "prerequisite isl configuration failed..."
     run_make || die "prerequisite isl make failed..."
     make -j1 install || die "prerequisite isl installation failed..."
 
@@ -105,9 +104,9 @@ stage_pr_expat()
 {
     print_info "BUILDING prerequisite: expat"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-expat || exit
+    cd "${BUILDDIR}"/build-expat || exit
 
-    configure_gen "$(srcdir ${EXPAT_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --enable-static --disable-shared --disable-nls || die "prerequisite expat configuration failed..."
+    configure_prereq "$(srcdir "${EXPAT_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls || die "prerequisite expat configuration failed..."
     run_make || die "prerequisite expat make failed..."
     make -j1 install || die "prerequisite expat installation failed..."
 
@@ -118,9 +117,9 @@ stage_pr_elfutils()
 {
     print_info "BUILDING prerequisite: elfutils"
     prereq_set_buildflags
-    cd ${BUILDDIR}/build-elfutils || exit
+    cd "${BUILDDIR}"/build-elfutils || exit
 
-    configure_gen "$(srcdir ${ELFUTILS_DNADR})" --prefix=${PREFIX_PREREQS} --host=${HOST} --disable-nls --disable-debuginfod --disable-libdebuginfod --without-bzlib --without-lzma --without-zstd || die "prerequisite elfutils configuration failed..."
+    configure_prereq "$(srcdir "${ELFUTILS_DNADR}")" --host="${HOST}" --disable-nls --disable-debuginfod --disable-libdebuginfod --without-bzlib --without-lzma --without-zstd || die "prerequisite elfutils configuration failed..."
     run_make || die "prerequisite elfutils make failed..."
     make -j1 install || die "prerequisite elfutils installation failed..."
 

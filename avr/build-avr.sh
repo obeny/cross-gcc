@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC2034,SC2086,SC2317,SC1091
+# shellcheck disable=SC1091,SC2034,SC2086,SC2329
 
 # load framework
 source ../common.sh
@@ -10,7 +10,7 @@ source ../common.sh
 
 # package versions
 #LIBC_VER="2.2.0"
-LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@b5f1355c33c4ba15bcfd577a313ca45aac723644@main" #2.2.1, 2024-07-18
+LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@b5f1355c33c4ba15bcfd577a313ca45aac723644@avr-libc-2_2" #2.2.1, 2024-07-18
 AVRDUDE_VER="7.3"
 
 # download addresses
@@ -25,7 +25,7 @@ ALL_DNADR+="${LIBC_DNADR} ${AVRDUDE_DNADR}"
 STEPS+="avr_libc avrdude"
 
 # configure options
-CONF_COMMON="${CONF_PRFX} --target=${TARGET}"
+CONF_COMMON="${CONF_PREFIX} --target=${TARGET}"
 
 #
 # MAIN
@@ -79,7 +79,7 @@ function stage_avrdude()
     set_buildflags_base
     cd ${BUILDDIR}/build-avrdude || exit
 
-    configure_cmake_gen "$(srcdir ${AVRDUDE_DNADR})" || die "avrdude cmake configuration failed..."
+    cmake_gen "$(srcdir ${AVRDUDE_DNADR})" || die "avrdude cmake configuration failed..."
     run_make || die "avrdude make failed..."
     make -j1 install || die "avrdude installation failed..."
 
