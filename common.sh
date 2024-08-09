@@ -455,7 +455,7 @@ CONF_GNU="--with-gnu-as --with-gnu-ld"
 CONF_RELEASE="--enable-checking=release --with-pkgversion='CROSS-GCC'"
 CONF_GENOPTS="--enable-lto"
 CONF_GENOPTSGCC_PREREQ="--with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} --with-libelf=${PREFIX_PREREQS}"
-CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --enable-fixed-point --enable-static --disable-threads --disable-tls --disable-decimal-float --disable-shared"
+CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --enable-fixed-point --enable-static --disable-libstdcxx-pch --disable-libatomic --disable-threads --disable-tls --disable-decimal-float --disable-shared"
 CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
 
 # generic cmake configuration options

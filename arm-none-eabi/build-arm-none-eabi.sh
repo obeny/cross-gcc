@@ -38,9 +38,6 @@ LIBC_NANO_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-reent-check-v
 
 LIBC_CFLAGS="-g -fdata-sections -ffunction-sections"
 
-# toolchain configuration
-GCC_LCPP="--with-host-libstdcxx=-static-libgcc"
-
 #
 # MAIN
 #
@@ -69,15 +66,13 @@ function stage_gcc()
     cd ${BUILDDIR}/build-gcc || exit
 
     configure_gcc --enable-languages=c --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} --with-newlib \
-    --disable-libstdcxx-pch --without-headers "${GCC_LCPP}" || die "gcc configuration failed..."
+    --without-headers || die "gcc configuration failed..."
     run_make all-gcc || die "gcc make failed..."
     make -j1 install-gcc || die "gcc installation failed..."
 
     remove_bdir build-gcc || die "removing builddir failed..."
 
     cd ${PREFIX}/${TARGET} || exit
-    rm -rf lib/libiberty.a
-    rm -rf include
 }
 
 function stage_newlib-full()
@@ -119,7 +114,7 @@ function stage_gcc-finish-full()
     export CXXFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS} -fno-exceptions"
 
     configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
-    --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} "${GCC_LCPP}" || die "gcc-finish-full configuration failed..."
+    --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
     run_make all || die "gcc-finish-full make failed..."
@@ -137,7 +132,7 @@ function stage_gcc-finish-nano()
     export CXXFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS} -fno-exceptions"
 
     configure_gcc --with-newlib --disable-libstdcxx-pch --with-headers=yes --enable-plugins --disable-libstdcxx-verbose \
-    --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} "${GCC_LCPP}" || die "gcc-finish-nano configuration failed..."
+    --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} || die "gcc-finish-nano configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
     run_make all || die "gcc-finish-nano make failed..."
