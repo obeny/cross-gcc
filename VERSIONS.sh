@@ -2,9 +2,9 @@
 # shellcheck disable=SC2034
 
 # toolchain main component versions
-BINUTILS_VER="2.42"
-#GCC_VER="14.1.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@99eb84fd363b7980eac16ace5e975da65a1185e8@releases/gcc-14" #20240803
+BINUTILS_VER="2.43"
+#GCC_VER="14.2.0"
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@81fd5bfdcbcaa5e2a841d793e1eecb045da02551@releases/gcc-14" #2024-10-09
 #GCC_VER="git@git://gcc.gnu.org/git/gcc.git@a5d2bb333043bda0cc7ba6e36b26205e7f292d40@master"
 
 # toolchain package urls
@@ -17,8 +17,8 @@ ZLIB_VER="1.3.1"
 GMP_VER="6.3.0"
 MPFR_VER="4.2.1"
 MPC_VER="1.3.1"
-ISL_VER="0.26"
-EXPAT_VER="2.6.2"
+ISL_VER="0.27"
+EXPAT_VER="2.6.3"
 ELFUTILS_VER="0.191"
 
 # prerequisite package urls
