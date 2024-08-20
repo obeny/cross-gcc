@@ -10,8 +10,8 @@ source ../common.sh
 
 # package versions
 #NEWLIB_VER="4.3.0.20230120"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@d001c01a7c5277194e7f8891f0228a2e3c4c64e1@main" #4.4.0+
-GDB_VER="15.1"
+NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@1b7c72fdcc4bde7520407d2d3364146f04fb8312@main" #4.4.0+, 2024-09-11
+GDB_VER="15.2"
 #OPENOCD_VER="0.12.0"
 OPENOCD_VER="git@https://github.com/obeny/openocd.git@49d0c61b5a2cd0881da287e034f347a4ee02c9c5@master-custom" #0.12+, 2024-08-02
 
