@@ -2,26 +2,12 @@
 # shellcheck disable=SC1091,SC2086,SC2329
 
 # load framework
+source ./VERSIONS.sh
 source ../common.sh
 
 #
 # CONFIG SECTION
 #
-
-# package versions
-#NEWLIB_VER="4.3.0.20230120"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@6af8fea4bbad6678ad6ef82b00860877a01c3614@main" #4.4.0+, 2024-10-13
-GDB_VER="15.2"
-#OPENOCD_VER="0.12.0"
-OPENOCD_VER="git@https://github.com/obeny/openocd.git@ae71ddd58a16af1c5c7ab2ab3d3a990fe98d4cab@master-custom" #0.12+, 2024-10-23
-
-# download addresses
-#NEWLIB_DNADR="ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz"
-NEWLIB_DNADR="${NEWLIB_VER}"
-GDB_DNADR="http://ftp.gnu.org/gnu/gdb/gdb-${GDB_VER}.tar.xz"
-#OPENOCD_DNADR="http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2"
-OPENOCD_DNADR="${OPENOCD_VER}"
-
 ALL_DNADR+="${NEWLIB_DNADR} ${GDB_DNADR} ${OPENOCD_DNADR}"
 
 # steps definition
