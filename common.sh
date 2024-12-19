@@ -427,7 +427,6 @@ stage_binutils_generic()
 # generic environment configuration
 CURDIR=$(pwd)
 ROOTDIR=${CURDIR}/..
-source ${CURDIR}/../VERSIONS.sh
 HOST=$(gcc -dumpmachine)
 TARGET=$(basename "${CURDIR}")
 PREFIX=$(abspath ${CURDIR}/../tc_${TARGET})
@@ -480,6 +479,7 @@ for cmd in ${REQUIRED_CMDS}; do
     fi
 done
 
+source ${CURDIR}/../VERSIONS.sh
 source ${CURDIR}/../prereqs.sh
 export PATH
 
