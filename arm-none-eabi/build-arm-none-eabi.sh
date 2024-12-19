@@ -67,7 +67,8 @@ function stage_gcc()
 function stage_newlib-patch()
 {
     cd "$(srcdir "${NEWLIB_DNADR}")" || exit
-    do_patch ${ROOTDIR}/_patches/newlib-unwind.patch 1
+    do_patch ${ROOTDIR}/_patches/newlib-unwind.patch 1 || exit
+    do_patch ${ROOTDIR}/_patches/newlib-stub_warning.patch 1 || exit
 }
 
 function stage_newlib-full()
