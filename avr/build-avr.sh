@@ -2,23 +2,12 @@
 # shellcheck disable=SC1091,SC2034,SC2086,SC2329
 
 # load framework
+source ./VERSIONS.sh
 source ../common.sh
 
 #
 # CONFIG SECTION
 #
-
-# package versions
-#LIBC_VER="2.2.0"
-LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@b5f1355c33c4ba15bcfd577a313ca45aac723644@avr-libc-2_2" #2.2.1, 2024-07-18
-AVRDUDE_VER="7.3"
-
-# download addresses
-#LIBC_DNADR="http://download.savannah.gnu.org/releases/avr-libc/avr-libc-${LIBC_VER}.tar.bz2"
-LIBC_DNADR="${LIBC_VER}"
-#AVRDUDE_DNADR="http://download.savannah.gnu.org/releases/avrdude/avrdude-${AVRDUDE_VER}.tar.gz"
-AVRDUDE_DNADR="https://github.com/avrdudes/avrdude/archive/refs/tags/v${AVRDUDE_VER}.tar.gz;avrdude-${AVRDUDE_VER}"
-
 ALL_DNADR+="${LIBC_DNADR} ${AVRDUDE_DNADR}"
 
 # steps definition
