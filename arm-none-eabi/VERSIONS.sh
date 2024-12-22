@@ -1,13 +1,13 @@
 # package versions
 
-GDB_VER="15.2"
+GDB_VER="16.1"
 
-#NEWLIB_VER="4.4.0.20231231"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@efa5401ea998ee01d79c63449f51cd36df938f42@main" #4.4.0+, 2024-12-16
+#NEWLIB_VER="4.5.0.20241231"
+NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@5ee0e96939e8784d4cbd2b2896b0ffbf88a00d86@main" #4.5.0+, 2025-01-16
 NEWLIB_DNADR="${NEWLIB_VER}"
 
 #OPENOCD_VER="0.12.0"
-OPENOCD_VER="git@https://github.com/obeny/openocd.git@ae71ddd58a16af1c5c7ab2ab3d3a990fe98d4cab@master-custom" #0.12+, 2024-10-23
+OPENOCD_VER="git@https://github.com/obeny/openocd.git@7541edfcdd6f2ff6b65e313bf17f811f38f3eb2d@master-custom" #0.12+, 2024-11-13
 OPENOCD_DNADR="${OPENOCD_VER}"
 
 # download addresses
