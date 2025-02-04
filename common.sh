@@ -429,7 +429,11 @@ CURDIR=$(pwd)
 ROOTDIR=${CURDIR}/..
 HOST=$(gcc -dumpmachine)
 TARGET=$(basename "${CURDIR}")
-PREFIX=$(abspath ${CURDIR}/../tc_${TARGET})
+if [ -z "${BUILD_PREFIX}" ]; then
+    PREFIX=$(abspath ${CURDIR}/../tc_${TARGET})
+else
+    PREFIX=${BUILD_PREFIX}/tc_${TARGET}
+fi
 PREFIX_PREREQS=${PREFIX}/prereqs
 PATH="${PREFIX}/bin:${PATH}"
 BUILDDIR=${BUILDDIR:-/tmp/tc_${TARGET}-build}
