@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034,SC2153
 
 # prerequisite package urls
-ZLIB_DNADR="http://zlib.net/zlib-${ZLIB_VER}.tar.xz"
+ZLIB_NG_DNADR="https://github.com/zlib-ng/zlib-ng/archive/refs/tags/${ZLIB_NG_VER}.tar.gz;zlib-ng-${ZLIB_NG_VER}"
 GMP_DNADR="https://gmplib.org/download/gmp/gmp-${GMP_VER}.tar.xz"
 MPFR_DNADR="https://www.mpfr.org/mpfr-current/mpfr-${MPFR_VER}.tar.xz"
 MPC_DNADR="https://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
@@ -11,7 +11,7 @@ EXPAT_DNADR="https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VE
 ELFUTILS_DNADR="https://sourceware.org/elfutils/ftp/${ELFUTILS_VER}/elfutils-${ELFUTILS_VER}.tar.bz2"
 
 STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
-ALL_DNADR="${ZLIB_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
+ALL_DNADR="${ZLIB_NG_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
 
 CFLAGS_PREREQ="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections"
 LDFLAGS_PREREQ="-Wl,-O1"
@@ -27,7 +27,7 @@ prereq_set_buildflags()
 prereq_info()
 {
     echo -e "PREREQUIREMENTS INFO:"
-    echo -e "ZLIB:\t\t\t ${ZLIB_VER}"
+    echo -e "ZLIB-NG:\t\t ${ZLIB_NG_VER}"
     echo -e "GMP:\t\t\t ${GMP_VER}"
     echo -e "MPFR:\t\t\t ${MPFR_VER}"
     echo -e "MPC:\t\t\t ${MPC_VER}"
@@ -43,15 +43,15 @@ stage_pr_mkbuilddirs()
 
 stage_pr_zlib()
 {
-    print_info "BUILDING prerequisite: zlib"
+    print_info "BUILDING prerequisite: zlib-ng"
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-zlib || exit
 
-    configure_prereq "$(srcdir "${ZLIB_DNADR}")" --static || die "prerequisite zlib configuration failed..."
-    run_make || die "prerequisite zlib make failed..."
-    make -j1 install || die "prerequisite zlib installation failed..."
+    configure_prereq "$(srcdir "${ZLIB_NG_DNADR}")" --static --zlib-compat || die "prerequisite zlib-ng configuration failed..."
+    run_make || die "prerequisite zlib-ng make failed..."
+    make -j1 install || die "prerequisite zlib-ng installation failed..."
 
-    remove_bdir build-zlib || die "removing zlib builddir failed..."
+    remove_bdir build-zlib || die "removing zlib-ng builddir failed..."
 }
 
 stage_pr_gmp()
