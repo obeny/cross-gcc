@@ -429,6 +429,7 @@ CURDIR=$(pwd)
 ROOTDIR=${CURDIR}/..
 HOST=$(gcc -dumpmachine)
 TARGET=$(basename "${CURDIR}")
+BUILD_PREFIX="${BUILD_PREFIX:-}"
 if [ -z "${BUILD_PREFIX}" ]; then
     PREFIX=$(abspath ${CURDIR}/../tc_${TARGET})
 else
