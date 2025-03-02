@@ -1,9 +1,9 @@
 # package versions
 
-GDB_VER="16.1"
+GDB_VER="16.2"
 
 #NEWLIB_VER="4.5.0.20241231"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@5ee0e96939e8784d4cbd2b2896b0ffbf88a00d86@main" #4.5.0+, 2025-01-16
+NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@57cb4dcb942f6325c5e03d4c072e384b52a41e17@main" #4.5.0+, cygwin-3.6.0, 2025-03-18
 NEWLIB_DNADR="${NEWLIB_VER}"
 
 #OPENOCD_VER="0.12.0"
