@@ -1,8 +1,8 @@
 # toolchain main component versions
-BINUTILS_VER="2.43"
+BINUTILS_VER="2.44"
 
 #GCC_VER="14.2.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@511920a21d4096cfc1226e5ec6140551ddc9ca90@releases/gcc-14" #2024-01-18
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@04b5c8b90cd95611d99684282cc321f06a0b49c2@releases/gcc-14" #2025-02-28
 GCC_DNADR="${GCC_VER}"
 
 # toolchain package urls
@@ -13,8 +13,8 @@ GCC_DNADR="${GCC_DNADR:=http://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}
 # prerequisite versions
 ZLIB_NG_VER="2.2.4"
 GMP_VER="6.3.0"
-MPFR_VER="4.2.1"
+MPFR_VER="4.2.2"
 MPC_VER="1.3.1"
 ISL_VER="0.27"
-EXPAT_VER="2.6.4"
+EXPAT_VER="2.7.1"
 ELFUTILS_VER="0.192"
