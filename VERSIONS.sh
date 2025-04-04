@@ -12,6 +12,7 @@ GCC_DNADR="${GCC_DNADR:=http://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}
 
 # prerequisite versions
 ZLIB_NG_VER="2.2.4"
+ZSTD_VER="1.5.7"
 GMP_VER="6.3.0"
 MPFR_VER="4.2.2"
 MPC_VER="1.3.1"

@@ -394,7 +394,7 @@ configure_prereq()
 # -----------------------------------------
 configure_binutils()
 {
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --enable-plugins $*"
+    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --with-zstd --enable-plugins $*"
     print_details "binutils" "configure ${ARGS}"
 
     SDIR="$(srcdir ${BINUTILS_DNADR})"
@@ -459,7 +459,7 @@ CONF_GNU="--with-gnu-as --with-gnu-ld"
 CONF_RELEASE="--enable-checking=release --with-pkgversion='CROSS-GCC'"
 CONF_GENOPTS="--enable-lto"
 CONF_GENOPTSGCC_PREREQ="--with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} --with-libelf=${PREFIX_PREREQS}"
-CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --enable-fixed-point --enable-static --disable-libstdcxx-pch --disable-libatomic --disable-threads --disable-tls --disable-decimal-float --disable-shared"
+CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --with-zstd --enable-fixed-point --enable-static --disable-libstdcxx-pch --disable-libatomic --disable-threads --disable-tls --disable-decimal-float --disable-shared"
 CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
 
 # generic cmake configuration options

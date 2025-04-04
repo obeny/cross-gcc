@@ -3,6 +3,7 @@
 
 # prerequisite package urls
 ZLIB_NG_DNADR="https://github.com/zlib-ng/zlib-ng/archive/refs/tags/${ZLIB_NG_VER}.tar.gz;zlib-ng-${ZLIB_NG_VER}"
+ZSTD_DNADR="https://github.com/facebook/zstd/releases/download/v${ZSTD_VER}/zstd-${ZSTD_VER}.tar.gz"
 GMP_DNADR="https://gmplib.org/download/gmp/gmp-${GMP_VER}.tar.xz"
 MPFR_DNADR="https://www.mpfr.org/mpfr-current/mpfr-${MPFR_VER}.tar.xz"
 MPC_DNADR="https://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
@@ -10,8 +11,8 @@ ISL_DNADR="https://libisl.sourceforge.io/isl-${ISL_VER}.tar.xz"
 EXPAT_DNADR="https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VER//./_}/expat-${EXPAT_VER}.tar.xz"
 ELFUTILS_DNADR="https://sourceware.org/elfutils/ftp/${ELFUTILS_VER}/elfutils-${ELFUTILS_VER}.tar.bz2"
 
-STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
-ALL_DNADR="${ZLIB_NG_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
+STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_zstd pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
+ALL_DNADR="${ZLIB_NG_DNADR} ${ZSTD_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
 
 CFLAGS_PREREQ="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections"
 LDFLAGS_PREREQ="-Wl,-O1"
@@ -28,6 +29,7 @@ prereq_info()
 {
     echo -e "PREREQUIREMENTS INFO:"
     echo -e "ZLIB-NG:\t\t ${ZLIB_NG_VER}"
+    echo -e "ZSTD:\t\t\t ${ZSTD_VER}"
     echo -e "GMP:\t\t\t ${GMP_VER}"
     echo -e "MPFR:\t\t\t ${MPFR_VER}"
     echo -e "MPC:\t\t\t ${MPC_VER}"
@@ -38,6 +40,7 @@ prereq_info()
 
 stage_pr_mkbuilddirs()
 {
+    # no build dir for: zstd (makefile)
     mkdir -p "${BUILDDIR}"/build-{zlib,gmp,mpfr,mpc,isl,expat,elfutils}
 }
 
@@ -52,6 +55,17 @@ stage_pr_zlib()
     make -j1 install || die "prerequisite zlib-ng installation failed..."
 
     remove_bdir build-zlib || die "removing zlib-ng builddir failed..."
+}
+
+stage_pr_zstd()
+{
+    print_info "BUILDING prerequisite: zstd"
+    prereq_set_buildflags
+    cd "$(srcdir "${ZSTD_DNADR}")/lib" || exit
+    make -j${JOBS} libzstd.a || die "prerequisite zstd make failed..."
+    cp libzstd.a "${PREFIX_PREREQS}/lib"
+
+    make clean || die "cleaning zstd srcdir failed..."
 }
 
 stage_pr_gmp()
