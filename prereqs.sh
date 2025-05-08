@@ -14,7 +14,7 @@ ELFUTILS_DNADR="https://sourceware.org/elfutils/ftp/${ELFUTILS_VER}/elfutils-${E
 STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_zstd pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
 ALL_DNADR="${ZLIB_NG_DNADR} ${ZSTD_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
 
-CFLAGS_PREREQ="-O2 -pipe -g0 -w -ffunction-sections -fdata-sections"
+CFLAGS_PREREQ="-O2 -pipe -g0 -w"
 LDFLAGS_PREREQ="-Wl,-O1"
 
 prereq_set_buildflags()
@@ -72,6 +72,7 @@ stage_pr_gmp()
 {
     print_info "BUILDING prerequisite: gmp"
     prereq_set_buildflags
+    export CFLAGS+=" -std=c17"
     cd "${BUILDDIR}"/build-gmp || exit
 
     configure_prereq "$(srcdir "${GMP_DNADR}")" --host="${HOST}" --enable-static --enable-cxx --disable-shared --without-readline || die "prerequisite gmp configuration failed..."
