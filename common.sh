@@ -467,7 +467,7 @@ CMAKE_BASE="-D CMAKE_VERBOSE_MAKEFILE=TRUE ${CMAKE_PREFIX} -D CMAKE_BUILD_TYPE=R
 
 STEPS_GEN="download unpack mkbuilddir"
 
-REQUIRED_CMDS="makeinfo yacc flex m4 make gcc pkg-config wget"
+REQUIRED_CMDS="makeinfo yacc flex m4 make cmake gcc pkg-config wget"
 
 # RUN
 # user check
