@@ -68,7 +68,9 @@ function stage_avrdude()
     set_buildflags_base
     cd ${BUILDDIR}/build-avrdude || exit
 
-    cmake_gen "$(srcdir ${AVRDUDE_DNADR})" || die "avrdude cmake configuration failed..."
+    EXTRA_CMAKE_FLAGS_AVRDUDE="-D SWIG_EXECUTABLE=SWIG_EXECUTABLE-NOTFOUND"
+
+    cmake_gen "$(srcdir ${AVRDUDE_DNADR})" "${EXTRA_CMAKE_FLAGS_AVRDUDE}" || die "avrdude cmake configuration failed..."
     run_make || die "avrdude make failed..."
     make -j1 install || die "avrdude installation failed..."
 
