@@ -6,7 +6,7 @@ GCC_VER="git@git://gcc.gnu.org/git/gcc.git@0f8bacc8b2e62d3b81d64ae466ee994d3cab7
 GCC_DNADR="${GCC_VER}"
 
 # toolchain package urls
-BINUTILS_DNADR="${BINUTILS_DNADR:=http://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.xz}"
+BINUTILS_DNADR="${BINUTILS_DNADR:=https://sourceware.org/pub/binutils/releases/binutils-${BINUTILS_VER}.tar.xz}"
 GCC_DNADR="${GCC_DNADR:=http://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz}"
 
 # prerequisite versions
