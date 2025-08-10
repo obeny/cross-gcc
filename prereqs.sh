@@ -62,7 +62,7 @@ stage_pr_zstd()
     print_info "BUILDING prerequisite: zstd"
     prereq_set_buildflags
     cd "$(srcdir "${ZSTD_DNADR}")/lib" || exit
-    make -j${JOBS} libzstd.a || die "prerequisite zstd make failed..."
+    run_make libzstd.a || die "prerequisite zstd make failed..."
     cp libzstd.a "${PREFIX_PREREQS}/lib"
 
     make clean || die "cleaning zstd srcdir failed..."
