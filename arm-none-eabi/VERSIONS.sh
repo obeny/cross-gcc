@@ -3,7 +3,7 @@
 GDB_VER="16.3"
 
 #NEWLIB_VER="4.5.0.20241231"
-NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@57cb4dcb942f6325c5e03d4c072e384b52a41e17@main" #4.5.0+, cygwin-3.6.0, 2025-03-18
+NEWLIB_VER="git@git://sourceware.org/git/newlib-cygwin.git@99cfcb824f30aebfd4a9a79f2ee698440f647ea4@cygwin-3_6-branch" #4.5.0+, cygwin-3.6.5+, 2025-07-24
 NEWLIB_DNADR="${NEWLIB_VER}"
 
 #OPENOCD_VER="0.12.0"
