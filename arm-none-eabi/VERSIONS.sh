@@ -11,7 +11,7 @@ OPENOCD_VER="git@https://github.com/obeny/openocd.git@7541edfcdd6f2ff6b65e313bf1
 OPENOCD_DNADR="${OPENOCD_VER}"
 
 # download addresses
-GDB_DNADR="http://ftp.gnu.org/gnu/gdb/gdb-${GDB_VER}.tar.xz"
+GDB_DNADR="https://ftpmirror.gnu.org/gdb/gdb-${GDB_VER}.tar.xz"
 
 NEWLIB_DNADR="${NEWLIB_DNADR:=ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz}"
 OPENOCD_DNADR="${OPENOCD_DNADR:=http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2}"
