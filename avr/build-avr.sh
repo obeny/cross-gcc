@@ -75,6 +75,7 @@ function stage_avrdude()
     make -j1 install || die "avrdude installation failed..."
 
     remove_bdir build-avrdude || die "removing builddir failed..."
+    unset EXTRA_CMAKE_FLAGS_AVRDUDE
 }
 
 run
