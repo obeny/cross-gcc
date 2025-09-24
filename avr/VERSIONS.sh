@@ -1,8 +1,8 @@
 # package versions
 
-LIBC_VER="2.2.1"
-#LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@b5f1355c33c4ba15bcfd577a313ca45aac723644@avr-libc-2_2" #2.2.1, 2024-07-18
-#LIBC_DNADR="${LIBC_VER}"
+#LIBC_VER="2.2.1"
+LIBC_VER="git@https://github.com/avrdudes/avr-libc.git@3279628c69a1de8e022a2c05bf3dab12c969c28f@main" #2.3.x-pre, 2025-09-24
+LIBC_DNADR="${LIBC_VER}"
 
 AVRDUDE_VER="8.1"
 
