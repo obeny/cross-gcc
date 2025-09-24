@@ -221,11 +221,13 @@ extract()
     local REPO="$(echo ${URLPROTO} | cut -f 2 -d ' ')"
     local REPO_DIR="$(srcdir ${DNLPATH})"
 
+    # handle download
     case "${PROTO}" in
     svn|git)
         print_info "No need to unpack repo ${REPO}"
         ;;
     *)
+        print_info "Downloading..."
         local FILE="$(basename ${1})"
         FILE=${FILE%%;*}
         local DIR="${FILE}"
@@ -239,14 +241,28 @@ extract()
         ;;
     esac
 
+    # handle git submodules
+    if [ "${PROTO}" == "git" ]; then
+        print_info "Checking for git modules"
+        cd "${REPO_DIR}" || exit
+        if [ -n ".gitmodules" ]; then
+            print_info "Running submodule update"
+            git submodule update --init --recursive
+        else
+            print_info "No gitmodules found, skipping"
+        fi
+        cd ..
+    fi
+
+    # run bootstrap script
     case "${PROTO}" in
     svn|git)
         print_info "Checking for bootstrap script"
         cd "${REPO_DIR}" || exit
-        BOOTSTRAP="$(find . -maxdepth 1 -name '*bootstrap*')"
-        if [ -n "${BOOTSTRAP}" ]; then
-            print_info "Running bootstrap ${BOOTSTRAP}"
-            ./${BOOTSTRAP}
+        BOOTSTRAP_SCR="$(find . -maxdepth 1 -name '*bootstrap*')"
+        if [ -n "${BOOTSTRAP_SCR}" ]; then
+            print_info "Running bootstrap: ${BOOTSTRAP_SCR}"
+            ./${BOOTSTRAP_SCR}
         else
             print_info "No bootstrap found, skipping"
         fi
