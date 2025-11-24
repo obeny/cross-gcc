@@ -1,5 +1,7 @@
 #!/bin/bash
-# shellcheck disable=SC1091,SC2086,SC2329
+# shellcheck disable=SC1091,SC2034,SC2086,SC2329
+
+REQUIRED_CMDS="jimsh libftdi-config"
 
 # load framework
 source ./VERSIONS.sh
