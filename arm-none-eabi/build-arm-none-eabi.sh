@@ -13,7 +13,7 @@ source ../common.sh
 ALL_DNADR+="${NEWLIB_DNADR} ${GDB_DNADR} ${OPENOCD_DNADR}"
 
 # steps definition
-STEPS+="newlib-patch newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"
+STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"
 
 # configure options
 CONF_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
@@ -64,13 +64,6 @@ function stage_gcc()
     remove_bdir build-gcc || die "removing builddir failed..."
 
     cd ${PREFIX}/${TARGET} || exit
-}
-
-function stage_newlib-patch()
-{
-    cd "$(srcdir "${NEWLIB_DNADR}")" || exit
-    do_patch ${ROOTDIR}/_patches/newlib-unwind.patch 1 || exit
-    do_patch ${ROOTDIR}/_patches/newlib-stub_warning.patch 1 || exit
 }
 
 function stage_newlib-full()
