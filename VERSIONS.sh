@@ -1,8 +1,8 @@
 # toolchain main component versions
-BINUTILS_VER="2.45"
+BINUTILS_VER="2.45.1"
 
 #GCC_VER="15.2.0"
-GCC_VER="git@git://gcc.gnu.org/git/gcc.git@2360c6156721759cab9484b8ee761aa4ae4d2574@releases/gcc-15" #2025-09-23 15.2.x
+GCC_VER="git@git://gcc.gnu.org/git/gcc.git@2481b8b42213da13d6f24b76a30a7917f1b06ae0@releases/gcc-15" #2025-11-24 15.2.x
 GCC_DNADR="${GCC_VER}"
 
 # toolchain package urls
@@ -16,5 +16,5 @@ GMP_VER="6.3.0"
 MPFR_VER="4.2.2"
 MPC_VER="1.3.1"
 ISL_VER="0.27"
-EXPAT_VER="2.7.2"
-ELFUTILS_VER="0.193"
+EXPAT_VER="2.7.3"
+ELFUTILS_VER="0.194"
