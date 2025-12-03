@@ -1,6 +1,11 @@
 #!/bin/bash
 # shellcheck disable=SC1091,SC2001,SC2034,SC2086,SC2155
 
+if [ -z "${BASH_VERSION}" ]; then
+    echo "Script have to be run in BASH!"
+    exit 1
+fi
+
 # die if any error occured or variable is unset
 set -e
 set -u
