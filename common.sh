@@ -113,7 +113,7 @@ srcdir()
     local CUSTOM_DIR
 
     case "${PROTO}" in
-    svn|git)
+    git)
         echo "${DIR}"
         ;;
     *)
@@ -137,9 +137,6 @@ download()
     local URL="$(echo "${URLPROTO}" | cut -f 2 -d ' ')"
 
     case "${PROTO}" in
-    svn)
-        download_svn "${URL}"
-        ;;
     git)
         download_git "${URL}"
         ;;
@@ -161,23 +158,6 @@ download_web()
         wget --no-check-certificate "${URL}" || die "download failed: ${FILE}"
     else
         print_info "file already exists: ${FILE}"
-    fi
-}
-
-# -----------------------------------------
-download_svn()
-{
-    local URL="${1}"
-
-    local SVN_URL="$(echo "${URL}" | cut -f 1 -d '@')"
-    local SVN_REV="$(echo "${URL}" | cut -f 2 -d '@')"
-    local SVN_DIR="$(echo "${URL}" | cut -f 3 -d '@')-${SVN_REV}"
-
-    if [ ! -d "${SVN_DIR}" ]; then
-        print_info "SVN CHECKOUT: svn co -r ${SVN_REV} ${SVN_URL} ${SVN_DIR}"
-        svn co -r ${SVN_REV} ${SVN_URL} ${SVN_DIR} || die "SVN checkout failed ${SVN_DIR}"
-    else
-        print_info "SVN dir already exists: ${SVN_DIR}"
     fi
 }
 
@@ -229,7 +209,7 @@ extract()
 
     # handle download
     case "${PROTO}" in
-    svn|git)
+    git)
         print_info "No need to unpack repo ${REPO}"
         ;;
     *)
@@ -262,7 +242,7 @@ extract()
 
     # run bootstrap script
     case "${PROTO}" in
-    svn|git)
+    git)
         print_info "Checking for bootstrap script"
         cd "${REPO_DIR}" || exit
         BOOTSTRAP_SCR="$(find . -maxdepth 1 -name '*bootstrap*')"
