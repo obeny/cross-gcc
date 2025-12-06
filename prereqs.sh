@@ -1,16 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2034,SC2153
 
-# prerequisite package urls
-ZLIB_NG_DNADR="https://github.com/zlib-ng/zlib-ng/archive/refs/tags/${ZLIB_NG_VER}.tar.gz;zlib-ng-${ZLIB_NG_VER}"
-ZSTD_DNADR="https://github.com/facebook/zstd/releases/download/v${ZSTD_VER}/zstd-${ZSTD_VER}.tar.gz"
-GMP_DNADR="https://gmplib.org/download/gmp/gmp-${GMP_VER}.tar.xz"
-MPFR_DNADR="https://www.mpfr.org/mpfr-current/mpfr-${MPFR_VER}.tar.xz"
-MPC_DNADR="https://ftpmirror.gnu.org/mpc/mpc-${MPC_VER}.tar.gz"
-ISL_DNADR="https://libisl.sourceforge.io/isl-${ISL_VER}.tar.xz"
-EXPAT_DNADR="https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VER//./_}/expat-${EXPAT_VER}.tar.xz"
-ELFUTILS_DNADR="https://sourceware.org/elfutils/ftp/${ELFUTILS_VER}/elfutils-${ELFUTILS_VER}.tar.bz2"
-
 STEPS_PREREQ="pr_mkbuilddirs pr_zlib pr_zstd pr_gmp pr_mpfr pr_mpc pr_isl pr_expat pr_elfutils"
 ALL_DNADR="${ZLIB_NG_DNADR} ${ZSTD_DNADR} ${GMP_DNADR} ${MPFR_DNADR} ${MPC_DNADR} ${ISL_DNADR} ${EXPAT_DNADR} ${ELFUTILS_DNADR} "
 
