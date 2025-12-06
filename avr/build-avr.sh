@@ -2,7 +2,7 @@
 # shellcheck disable=SC1091,SC2034,SC2086,SC2329
 
 # load framework
-source ./VERSIONS.sh
+source ./VERSIONS
 source ../common.sh
 
 #

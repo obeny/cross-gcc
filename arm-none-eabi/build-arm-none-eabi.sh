@@ -4,7 +4,7 @@
 REQUIRED_CMDS="jimsh libftdi-config"
 
 # load framework
-source ./VERSIONS.sh
+source ./VERSIONS
 source ../common.sh
 
 #

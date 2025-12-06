@@ -471,7 +471,7 @@ for cmd in ${REQUIRED_CMDS}; do
     fi
 done
 
-source ${CURDIR}/../VERSIONS.sh
+source ${CURDIR}/../VERSIONS
 source ${CURDIR}/../prereqs.sh
 export PATH
 
