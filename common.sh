@@ -280,12 +280,6 @@ extract()
 }
 
 # -----------------------------------------
-get_processor_count()
-{
-    nproc
-}
-
-# -----------------------------------------
 print_info()
 {
     echo "iii ${1}"
@@ -451,7 +445,7 @@ fi
 PREFIX_PREREQS=${PREFIX}/prereqs
 PATH="${PREFIX}/bin:${PATH}"
 BUILDDIR=${BUILDDIR:-/tmp/tc_${TARGET}-build}
-JOBS=$(get_processor_count)
+JOBS=$(nproc)
 MAKEOPTS="-s -j${JOBS}"
 
 BASE_CFLAGS="-O2 -pipe -g0 -ffunction-sections -fdata-sections -s -Wno-error -w"
