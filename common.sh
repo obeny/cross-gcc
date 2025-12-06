@@ -17,12 +17,22 @@ set -u
 
 stage_download()
 {
-    download_all
+    print_info "Downloading..."
+
+    for DWN in ${ALL_DNADR}
+    do
+        download "${DWN}"
+    done
 }
 
 stage_unpack()
 {
-    extract_all
+    print_info "Extracting..."
+
+    for EXT in ${ALL_DNADR}
+    do
+        extract "${EXT}"
+    done
 }
 
 #
@@ -193,15 +203,6 @@ download_git()
 }
 
 # -----------------------------------------
-download_all()
-{
-    for DWN in ${ALL_DNADR}
-    do
-        download "${DWN}"
-    done
-}
-
-# -----------------------------------------
 exec_stage()
 {
     if [ ! -e stage_${1} ]; then
@@ -276,15 +277,6 @@ extract()
     *)
         ;;
     esac
-}
-
-# -----------------------------------------
-extract_all()
-{
-    for EXT in ${ALL_DNADR}
-    do
-        extract "${EXT}"
-    done
 }
 
 # -----------------------------------------
