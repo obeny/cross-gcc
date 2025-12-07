@@ -35,6 +35,75 @@ stage_unpack()
     done
 }
 
+stage_patch()
+{
+    # common
+    if [ -e "${ROOTDIR}/patches/common" ]
+    then
+        print_info "Patching common packages..."
+        for PKG in "${ROOTDIR}"/patches/common/*
+        do
+            PKG_BASE=$(basename "${PKG}")
+            cd "${BUILDDIR}/${PKG_BASE}"
+            print_info "package: ${PKG_BASE}"
+            for PATCH in "${ROOTDIR}"/patches/common/"${PKG_BASE}"/*
+            do
+                PATCH_BASE=$(basename "${PATCH}")
+                do_patch "${ROOTDIR}/patches/common/${PKG_BASE}/${PATCH_BASE}" 1
+            done
+        done
+    fi
+
+    # target
+    if [ -e "${ROOTDIR}/patches/${TARGET}" ]
+    then
+        print_info "Patching target: ${TARGET} packages..."
+        for PKG in "${ROOTDIR}"/patches/"${TARGET}"/*
+        do
+            PKG_BASE=$(basename "${PKG}")
+            cd "${BUILDDIR}/${PKG_BASE}"
+            print_info "package: ${PKG_BASE}"
+            for PATCH in "${ROOTDIR}"/patches/"${TARGET}"/"${PKG_BASE}"/*
+            do
+                PATCH_BASE=$(basename "${PATCH}")
+                do_patch "${ROOTDIR}/patches/${TARGET}/${PKG_BASE}/${PATCH_BASE}" 1
+            done
+        done
+    fi
+
+    cd "${BUILDDIR}"
+}
+
+stage_bootstrap()
+{
+    print_info "Bootstrapping..."
+
+    for BSTRAP in ${ALL_DNADR}
+    do
+        PKGNAME=$(echo "${BSTRAP}" | cut -f 1 -d %)
+        URLPROTO=$(urlproto $BSTRAP)
+        PROTO="$(echo "${URLPROTO}" | cut -f 1 -d ' ')"
+
+        case "${PROTO}" in
+        git)
+            print_info "Checking for bootstrap script"
+            cd "${PKGNAME}" || exit
+            BOOTSTRAP_SCR="$(find . -maxdepth 1 -name '*bootstrap*')"
+            if [ -n "${BOOTSTRAP_SCR}" ]; then
+                print_info "Running bootstrap: ${PKGNAME} ${BOOTSTRAP_SCR}"
+               ./${BOOTSTRAP_SCR} || exit
+               print_info "Bootstrap finished"
+            else
+                print_info "No bootstrap found, skipping"
+            fi
+            cd ..
+            ;;
+        *)
+            ;;
+        esac
+    done
+}
+
 #
 # HELPER FUNCTIONS
 #
