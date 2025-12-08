@@ -4,11 +4,11 @@
 GDB_VER="16.3"
 
 #NEWLIB_VER="4.5.0.20241231"
-NEWLIB_VER="newlib%git@git://sourceware.org/git/newlib-cygwin.git@9fdf631303be34d7d4c02d3c9c32d17bb97014ff" #4.5.0+, cygwin-3.6.5+, 2025-11-18
+NEWLIB_VER="newlib%git@git://sourceware.org/git/newlib-cygwin.git@7d43942e7c3b56799e9e46c4701f86a8eb0ed579" #cygwin-3_6-branch 4.5.0+, cygwin-3.6.5+, 2025-12-04
 NEWLIB_DNADR="${NEWLIB_VER}"
 
 #OPENOCD_VER="0.12.0"
-OPENOCD_VER="openocd%git@https://github.com/openocd-org/openocd.git@1ea763d23c2337374909170687e16d1c5b9d9e89" #0.12+, 2025-11-24
+OPENOCD_VER="openocd%git@https://github.com/openocd-org/openocd.git@aa9ff8dc5ec60c46134f57a2f858149bb083036e" #main 0.12+, update on 2025-12-08
 OPENOCD_DNADR="${OPENOCD_VER}"
 
 # download addresses
