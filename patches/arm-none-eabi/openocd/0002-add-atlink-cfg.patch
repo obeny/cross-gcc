@@ -1,0 +1,55 @@
+From 4dad8774879fee4961a16b7610582c28f4dd332b Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Thu, 23 Jun 2022 09:41:44 +0800
+Subject: [PATCH 02/18] add atlink cfg
+
+Signed-off-by: ArteryTek <Artery_Forum_01@arterytek.com>
+---
+ tcl/interface/atlink.cfg        | 13 +++++++++++++
+ tcl/interface/atlink_dap_v2.cfg | 14 ++++++++++++++
+ 2 files changed, 27 insertions(+)
+ create mode 100644 tcl/interface/atlink.cfg
+ create mode 100644 tcl/interface/atlink_dap_v2.cfg
+
+diff --git a/tcl/interface/atlink.cfg b/tcl/interface/atlink.cfg
+new file mode 100644
+index 000000000..a0b83cddc
+--- /dev/null
++++ b/tcl/interface/atlink.cfg
+@@ -0,0 +1,13 @@
++#
++# ARM CMSIS-DAP compliant adapter
++#
++# http://www.keil.com/support/man/docs/dapdebug/
++#
++
++adapter driver cmsis-dap
++transport select swd
++adapter speed 5000
++cmsis_dap_backend hid
++
++# Optionally specify the serial number of CMSIS-DAP usb device.
++# adapter serial 02200201E6661E601B98E3B9
+diff --git a/tcl/interface/atlink_dap_v2.cfg b/tcl/interface/atlink_dap_v2.cfg
+new file mode 100644
+index 000000000..c49cc503b
+--- /dev/null
++++ b/tcl/interface/atlink_dap_v2.cfg
+@@ -0,0 +1,14 @@
++#
++# ARM CMSIS-DAP compliant adapter
++#
++# http://www.keil.com/support/man/docs/dapdebug/
++#
++
++adapter driver cmsis-dap
++transport select swd
++adapter speed 5000
++cmsis_dap_backend usb_bulk
++cmsis_dap_usb interface 3
++
++# Optionally specify the serial number of CMSIS-DAP usb device.
++# adapter serial 02200201E6661E601B98E3B9
+-- 
+2.52.0
+

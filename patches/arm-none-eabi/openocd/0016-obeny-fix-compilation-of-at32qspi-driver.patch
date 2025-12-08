@@ -1,0 +1,25 @@
+From 837d64cc1af7dfef86e6d02c469d32b9a3b09473 Mon Sep 17 00:00:00 2001
+From: Marcin Benka <marcin.benka@gmail.com>
+Date: Thu, 24 Oct 2024 00:12:15 +0200
+Subject: [PATCH 16/18] [obeny]: fix compilation of at32qspi driver
+
+---
+ src/flash/nor/at32qspi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/flash/nor/at32qspi.c b/src/flash/nor/at32qspi.c
+index 1a39e3dc0..8cc434afb 100644
+--- a/src/flash/nor/at32qspi.c
++++ b/src/flash/nor/at32qspi.c
+@@ -1169,7 +1169,7 @@ static const struct command_registration at32qspi_command_handlers[] = {
+ 	COMMAND_REGISTRATION_DONE
+ };
+ 
+-struct flash_driver at32qspi_flash = {
++const struct flash_driver at32qspi_flash = {
+ 	.name = "at32qspi",
+ 	.commands = at32qspi_command_handlers,
+ 	.flash_bank_command = at32qspi_flash_bank_command,
+-- 
+2.52.0
+

@@ -1,0 +1,709 @@
+From f1923743aba351fb6674aac5cb9543211edc3fe4 Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Tue, 16 Jul 2024 15:25:18 +0800
+Subject: [PATCH 11/18] add m412 m416 cfg
+
+---
+ tcl/target/at32a423xx.cfg                     | 91 +++++++++++++++++++
+ tcl/target/at32f402xx.cfg                     |  6 ++
+ .../at32f403a_407_spim_type1_remap0.cfg       |  6 ++
+ .../at32f403a_407_spim_type1_remap1.cfg       |  6 ++
+ .../at32f403a_407_spim_type2_remap0.cfg       |  6 ++
+ .../at32f403a_407_spim_type2_remap1.cfg       |  6 ++
+ tcl/target/at32f403axG.cfg                    |  6 ++
+ tcl/target/at32f403axx.cfg                    |  6 ++
+ tcl/target/at32f405xx.cfg                     |  6 ++
+ tcl/target/at32f407xG.cfg                     |  6 ++
+ tcl/target/at32f407xx.cfg                     |  6 ++
+ tcl/target/at32f413_spim_type1_remap0.cfg     |  7 ++
+ tcl/target/at32f413_spim_type1_remap1.cfg     |  7 ++
+ tcl/target/at32f413_spim_type2_remap0.cfg     |  7 ++
+ tcl/target/at32f413_spim_type2_remap1.cfg     |  7 ++
+ tcl/target/at32f413xx.cfg                     |  7 ++
+ tcl/target/at32f415xx.cfg                     |  8 ++
+ tcl/target/at32f421xx.cfg                     |  7 ++
+ tcl/target/at32f423xx.cfg                     |  5 +
+ tcl/target/at32f425xx.cfg                     |  7 ++
+ tcl/target/at32f435xG.cfg                     |  6 ++
+ tcl/target/at32f435xM.cfg                     |  6 ++
+ tcl/target/at32f435xx.cfg                     |  6 ++
+ tcl/target/at32f437xG.cfg                     |  6 ++
+ tcl/target/at32f437xM.cfg                     |  6 ++
+ tcl/target/at32f437xx.cfg                     |  6 ++
+ tcl/target/at32m412xx.cfg                     | 91 +++++++++++++++++++
+ tcl/target/at32m416xx.cfg                     | 91 +++++++++++++++++++
+ tcl/target/at32wb415xx.cfg                    |  7 ++
+ 29 files changed, 438 insertions(+)
+ create mode 100644 tcl/target/at32a423xx.cfg
+ create mode 100644 tcl/target/at32m412xx.cfg
+ create mode 100644 tcl/target/at32m416xx.cfg
+
+diff --git a/tcl/target/at32a423xx.cfg b/tcl/target/at32a423xx.cfg
+new file mode 100644
+index 000000000..7d91cb976
+--- /dev/null
++++ b/tcl/target/at32a423xx.cfg
+@@ -0,0 +1,91 @@
++# script for AT32f4xx family
++
++#
++# AT32 devices support both JTAG and SWD transports.
++#
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f4xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++# flash size will be probed
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME 0x40023C00 0x1FFFF800
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++    cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++}
+diff --git a/tcl/target/at32f402xx.cfg b/tcl/target/at32f402xx.cfg
+index d2561f251..d564d10a9 100644
+--- a/tcl/target/at32f402xx.cfg
++++ b/tcl/target/at32f402xx.cfg
+@@ -84,3 +84,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++}
+diff --git a/tcl/target/at32f403a_407_spim_type1_remap0.cfg b/tcl/target/at32f403a_407_spim_type1_remap0.cfg
+index ab9976218..ad918e752 100644
+--- a/tcl/target/at32f403a_407_spim_type1_remap0.cfg
++++ b/tcl/target/at32f403a_407_spim_type1_remap0.cfg
+@@ -95,3 +95,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f403a_407_spim_type1_remap1.cfg b/tcl/target/at32f403a_407_spim_type1_remap1.cfg
+index abbb949f9..099ca7a04 100644
+--- a/tcl/target/at32f403a_407_spim_type1_remap1.cfg
++++ b/tcl/target/at32f403a_407_spim_type1_remap1.cfg
+@@ -96,3 +96,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f403a_407_spim_type2_remap0.cfg b/tcl/target/at32f403a_407_spim_type2_remap0.cfg
+index ef2765cfb..78ba02c91 100644
+--- a/tcl/target/at32f403a_407_spim_type2_remap0.cfg
++++ b/tcl/target/at32f403a_407_spim_type2_remap0.cfg
+@@ -96,3 +96,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f403a_407_spim_type2_remap1.cfg b/tcl/target/at32f403a_407_spim_type2_remap1.cfg
+index 38b9529c7..1ad7233f0 100644
+--- a/tcl/target/at32f403a_407_spim_type2_remap1.cfg
++++ b/tcl/target/at32f403a_407_spim_type2_remap1.cfg
+@@ -96,3 +96,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f403axG.cfg b/tcl/target/at32f403axG.cfg
+index c3793af6c..057b21e3f 100644
+--- a/tcl/target/at32f403axG.cfg
++++ b/tcl/target/at32f403axG.cfg
+@@ -86,3 +86,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f403axx.cfg b/tcl/target/at32f403axx.cfg
+index 0f34a91c3..cb9e5a360 100644
+--- a/tcl/target/at32f403axx.cfg
++++ b/tcl/target/at32f403axx.cfg
+@@ -84,3 +84,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f405xx.cfg b/tcl/target/at32f405xx.cfg
+index d2561f251..d564d10a9 100644
+--- a/tcl/target/at32f405xx.cfg
++++ b/tcl/target/at32f405xx.cfg
+@@ -84,3 +84,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++}
+diff --git a/tcl/target/at32f407xG.cfg b/tcl/target/at32f407xG.cfg
+index c5f50194f..8b4a364d0 100644
+--- a/tcl/target/at32f407xG.cfg
++++ b/tcl/target/at32f407xG.cfg
+@@ -86,3 +86,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f407xx.cfg b/tcl/target/at32f407xx.cfg
+index 3529feef5..410cb70c3 100644
+--- a/tcl/target/at32f407xx.cfg
++++ b/tcl/target/at32f407xx.cfg
+@@ -84,3 +84,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
+diff --git a/tcl/target/at32f413_spim_type1_remap0.cfg b/tcl/target/at32f413_spim_type1_remap0.cfg
+index 8ba364718..179b7ae44 100644
+--- a/tcl/target/at32f413_spim_type1_remap0.cfg
++++ b/tcl/target/at32f413_spim_type1_remap0.cfg
+@@ -94,3 +94,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f413_spim_type1_remap1.cfg b/tcl/target/at32f413_spim_type1_remap1.cfg
+index c9baf482c..93fe12150 100644
+--- a/tcl/target/at32f413_spim_type1_remap1.cfg
++++ b/tcl/target/at32f413_spim_type1_remap1.cfg
+@@ -94,3 +94,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f413_spim_type2_remap0.cfg b/tcl/target/at32f413_spim_type2_remap0.cfg
+index d8f406077..54328e646 100644
+--- a/tcl/target/at32f413_spim_type2_remap0.cfg
++++ b/tcl/target/at32f413_spim_type2_remap0.cfg
+@@ -94,3 +94,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f413_spim_type2_remap1.cfg b/tcl/target/at32f413_spim_type2_remap1.cfg
+index f6bde67ff..57b7c500a 100644
+--- a/tcl/target/at32f413_spim_type2_remap1.cfg
++++ b/tcl/target/at32f413_spim_type2_remap1.cfg
+@@ -93,3 +93,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f413xx.cfg b/tcl/target/at32f413xx.cfg
+index 0e0261a33..51b8c6b56 100644
+--- a/tcl/target/at32f413xx.cfg
++++ b/tcl/target/at32f413xx.cfg
+@@ -84,3 +84,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02000000
++	mww 0x40021054 0x0000020d
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f415xx.cfg b/tcl/target/at32f415xx.cfg
+index d3ad9fd3f..105cdf609 100644
+--- a/tcl/target/at32f415xx.cfg
++++ b/tcl/target/at32f415xx.cfg
+@@ -84,3 +84,11 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02100000
++	mww 0x40021054 0x0000020D
++	mww 0x40022000 0x00000011
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f421xx.cfg b/tcl/target/at32f421xx.cfg
+index 751743087..3197261f5 100644
+--- a/tcl/target/at32f421xx.cfg
++++ b/tcl/target/at32f421xx.cfg
+@@ -84,3 +84,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02100000
++	mww 0x40021054 0x0000020D
++	mww 0x40022000 0x00000031
++	sleep 1
++}
+diff --git a/tcl/target/at32f423xx.cfg b/tcl/target/at32f423xx.cfg
+index 65063b25f..59a8dcb0f 100644
+--- a/tcl/target/at32f423xx.cfg
++++ b/tcl/target/at32f423xx.cfg
+@@ -84,3 +84,8 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++}
+\ No newline at end of file
+diff --git a/tcl/target/at32f425xx.cfg b/tcl/target/at32f425xx.cfg
+index afc8127a5..f9706cbdb 100644
+--- a/tcl/target/at32f425xx.cfg
++++ b/tcl/target/at32f425xx.cfg
+@@ -84,3 +84,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02100000
++	mww 0x40021054 0x0000020D
++	mww 0x40022000 0x00000031
++	sleep 1
++}
++
+diff --git a/tcl/target/at32f435xG.cfg b/tcl/target/at32f435xG.cfg
+index 9bebaeff8..0cda88282 100644
+--- a/tcl/target/at32f435xG.cfg
++++ b/tcl/target/at32f435xG.cfg
+@@ -86,3 +86,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++}
+diff --git a/tcl/target/at32f435xM.cfg b/tcl/target/at32f435xM.cfg
+index e24a6e8bc..e507f024a 100644
+--- a/tcl/target/at32f435xM.cfg
++++ b/tcl/target/at32f435xM.cfg
+@@ -86,3 +86,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++}
+diff --git a/tcl/target/at32f435xx.cfg b/tcl/target/at32f435xx.cfg
+index f83820ce5..307cc1903 100644
+--- a/tcl/target/at32f435xx.cfg
++++ b/tcl/target/at32f435xx.cfg
+@@ -84,3 +84,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++}
+diff --git a/tcl/target/at32f437xG.cfg b/tcl/target/at32f437xG.cfg
+index ff466758d..1fc35645b 100644
+--- a/tcl/target/at32f437xG.cfg
++++ b/tcl/target/at32f437xG.cfg
+@@ -86,3 +86,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++}
+diff --git a/tcl/target/at32f437xM.cfg b/tcl/target/at32f437xM.cfg
+index 390a80ace..3db21b37e 100644
+--- a/tcl/target/at32f437xM.cfg
++++ b/tcl/target/at32f437xM.cfg
+@@ -86,3 +86,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++}
+diff --git a/tcl/target/at32f437xx.cfg b/tcl/target/at32f437xx.cfg
+index f33076e7f..1fccf6577 100644
+--- a/tcl/target/at32f437xx.cfg
++++ b/tcl/target/at32f437xx.cfg
+@@ -84,3 +84,9 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++}
+diff --git a/tcl/target/at32m412xx.cfg b/tcl/target/at32m412xx.cfg
+new file mode 100644
+index 000000000..7d91cb976
+--- /dev/null
++++ b/tcl/target/at32m412xx.cfg
+@@ -0,0 +1,91 @@
++# script for AT32f4xx family
++
++#
++# AT32 devices support both JTAG and SWD transports.
++#
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f4xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++# flash size will be probed
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME 0x40023C00 0x1FFFF800
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++    cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++}
+diff --git a/tcl/target/at32m416xx.cfg b/tcl/target/at32m416xx.cfg
+new file mode 100644
+index 000000000..7d91cb976
+--- /dev/null
++++ b/tcl/target/at32m416xx.cfg
+@@ -0,0 +1,91 @@
++# script for AT32f4xx family
++
++#
++# AT32 devices support both JTAG and SWD transports.
++#
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f4xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++# flash size will be probed
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME 0x40023C00 0x1FFFF800
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++    cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++}
+diff --git a/tcl/target/at32wb415xx.cfg b/tcl/target/at32wb415xx.cfg
+index 3da130b5f..36ed1cce6 100644
+--- a/tcl/target/at32wb415xx.cfg
++++ b/tcl/target/at32wb415xx.cfg
+@@ -84,3 +84,10 @@ $_TARGETNAME configure -event trace-config {
+ 	# assignment
+ 	mmw 0xE0042004 0x00000020 0
+ }
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x40021030 0x02100000
++	mww 0x40021054 0x0000020D
++	mww 0x40022000 0x00000011
++	sleep 1
++}
+\ No newline at end of file
+-- 
+2.52.0
+

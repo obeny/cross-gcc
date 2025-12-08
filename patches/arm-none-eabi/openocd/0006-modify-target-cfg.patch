@@ -1,0 +1,227 @@
+From 2b4aea21de2bc5c4b71f3580128f564e33669a54 Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Thu, 15 Sep 2022 13:13:03 +0800
+Subject: [PATCH 06/18] modify target cfg
+
+---
+ tcl/target/at32f403axx.cfg | 6 +++++-
+ tcl/target/at32f403xx.cfg  | 6 +++++-
+ tcl/target/at32f407xx.cfg  | 6 +++++-
+ tcl/target/at32f413xx.cfg  | 6 +++++-
+ tcl/target/at32f415xx.cfg  | 6 +++++-
+ tcl/target/at32f421xx.cfg  | 6 +++++-
+ tcl/target/at32f425xx.cfg  | 6 +++++-
+ tcl/target/at32f435xM.cfg  | 6 +++++-
+ tcl/target/at32f435xx.cfg  | 6 +++++-
+ tcl/target/at32f437xM.cfg  | 6 +++++-
+ tcl/target/at32f437xx.cfg  | 6 +++++-
+ tcl/target/at32wb415xx.cfg | 6 +++++-
+ 12 files changed, 60 insertions(+), 12 deletions(-)
+
+diff --git a/tcl/target/at32f403axx.cfg b/tcl/target/at32f403axx.cfg
+index 8ad6c16d7..fe05b21b2 100644
+--- a/tcl/target/at32f403axx.cfg
++++ b/tcl/target/at32f403axx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f403xx.cfg b/tcl/target/at32f403xx.cfg
+index 2ab021239..cdaaaaa3e 100644
+--- a/tcl/target/at32f403xx.cfg
++++ b/tcl/target/at32f403xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f407xx.cfg b/tcl/target/at32f407xx.cfg
+index 6a82fb3d5..383e6d704 100644
+--- a/tcl/target/at32f407xx.cfg
++++ b/tcl/target/at32f407xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f413xx.cfg b/tcl/target/at32f413xx.cfg
+index 69a8e2991..6097c7b13 100644
+--- a/tcl/target/at32f413xx.cfg
++++ b/tcl/target/at32f413xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f415xx.cfg b/tcl/target/at32f415xx.cfg
+index bc1bb564e..c3103b685 100644
+--- a/tcl/target/at32f415xx.cfg
++++ b/tcl/target/at32f415xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f421xx.cfg b/tcl/target/at32f421xx.cfg
+index 757e2a6cb..4c7a11d1f 100644
+--- a/tcl/target/at32f421xx.cfg
++++ b/tcl/target/at32f421xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f425xx.cfg b/tcl/target/at32f425xx.cfg
+index 55adf05da..7a1fd3777 100644
+--- a/tcl/target/at32f425xx.cfg
++++ b/tcl/target/at32f425xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f435xM.cfg b/tcl/target/at32f435xM.cfg
+index 2e302a9ce..5dcf681ed 100644
+--- a/tcl/target/at32f435xM.cfg
++++ b/tcl/target/at32f435xM.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f435xx.cfg b/tcl/target/at32f435xx.cfg
+index 1c23a9843..5fb21e166 100644
+--- a/tcl/target/at32f435xx.cfg
++++ b/tcl/target/at32f435xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f437xM.cfg b/tcl/target/at32f437xM.cfg
+index c674f52f0..44801024b 100644
+--- a/tcl/target/at32f437xM.cfg
++++ b/tcl/target/at32f437xM.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32f437xx.cfg b/tcl/target/at32f437xx.cfg
+index 5dccf3987..002d3b110 100644
+--- a/tcl/target/at32f437xx.cfg
++++ b/tcl/target/at32f437xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+diff --git a/tcl/target/at32wb415xx.cfg b/tcl/target/at32wb415xx.cfg
+index 661cd5c5e..d3f5a54b6 100644
+--- a/tcl/target/at32wb415xx.cfg
++++ b/tcl/target/at32wb415xx.cfg
+@@ -30,7 +30,11 @@ if { [info exists WORKAREASIZE] } {
+ if { [info exists CPUTAPID] } {
+    set _CPUTAPID $CPUTAPID
+ } else {
+-   set _CPUTAPID 0x4ba00477
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
+ }
+ 
+ # Allow overriding the Flash bank size
+-- 
+2.52.0
+

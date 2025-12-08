@@ -1,0 +1,114 @@
+--- a/tcl/target/bcm6766.cfg
++++ b/tcl/target/bcm6766.cfg
+@@ -0,0 +1,111 @@
++# BCM96766
++adapter speed 10000
++transport select jtag
++ 
++set CHIPNAME bcm96766
++ 
++reset_config trst_and_srst
++ 
++ 
++if { [info exists CHIPNAME] } {
++        set  _CHIPNAME $CHIPNAME
++} else {
++        set  _CHIPNAME bcm96766
++}
++ 
++ 
++# Main CPU DAP
++if { [info exists DAP_TAPID] } {
++        set _DAP_TAPID $DAP_TAPID
++} else {
++        set _DAP_TAPID 0x5ba00477
++}
++ 
++ 
++jtag newtap auto0 tap -irlen 16 -expected-id 0x01a6e17f
++jtag newtap auto1 tap -irlen 32 -expected-id 0x006f517f
++jtag newtap auto2 tap -irlen 4 -expected-id 0x0ba02477
++jtag newtap auto3 tap -irlen 32 -expected-id 0x006f517f
++jtag newtap auto4 tap -irlen 4 -expected-id 0x0ba02477
++jtag newtap auto5 tap -irlen 4 -expected-id 0x5ba00477
++jtag newtap 96766 cpu -irlen 4 -expected-id 0x5ba00477
++jtag newtap auto7 tap -irlen 4 -expected-id 0x0ba02477
++jtag newtap auto8 tap -irlen 4 -expected-id 0x5ba00477
++jtag newtap auto9 tap -irlen 2 -expected-id 0x00000000
++ 
++dap create $_CHIPNAME.dap -chain-position 96766.cpu
++ 
++set _CORES 4
++set _USE_SMP 1
++ 
++set _DBG_BASE {0x81810000 0x81812000 0x81814000 0x81816000}
++ 
++set _SMP_COMMAND "target smp"
++ 
++# Perform configuration for each of the four cores
++for { set _CORE 0 } { $_CORE < $_CORES } { incr _CORE } {
++        # Set the target name for each core
++        set _TARGET_NAME $_CHIPNAME.cpu$_CORE
++        # Add each target name to the SMP command
++        set _SMP_COMMAND "$_SMP_COMMAND $_TARGET_NAME"
++ 
++        # Create debug target for GDB that refers to a JTAG TAP
++        # cortex_a
++        # -dap: debug access port to use for this target
++        target create $_TARGET_NAME cortex_a -dap $_CHIPNAME.dap
++ 
++        #
++        # Configure the debug target
++        #
++        # Set the CTI for this core
++        # Set the address of the debug controller for this core
++        $_TARGET_NAME configure -dbgbase [lindex $_DBG_BASE $_CORE]
++        # Set the access port for the target
++        $_TARGET_NAME configure -ap-num 0
++        # This is needed for GDB to correctly inspect the SMP system (section 20.7)
++        $_TARGET_NAME configure -rtos hwthread
++        $_TARGET_NAME configure -coreid $_CORE
++        $_TARGET_NAME configure -event gdb-attach {
++                targets 0
++                cortex_a dbginit
++                halt
++                targets 1
++                cortex_a dbginit
++                halt
++                targets 2
++                cortex_a dbginit
++                halt
++                targets 3
++                cortex_a dbginit
++                halt
++        }
++}
++ 
++proc resume_all { } {
++        global _CORES
++        global _CHIPNAME
++        for { set _CORE 0 } { $_CORE < $_CORES } { incr _CORE } {
++                set _TARGET_NAME $_CHIPNAME.cpu$_CORE
++                targets $_CORE
++                resume
++        }
++}
++ 
++proc halt_all { } {
++        global _CORES
++        global _CHIPNAME
++        for { set _CORE 0 } { $_CORE < $_CORES } { incr _CORE } {
++                set _TARGET_NAME $_CHIPNAME.cpu$_CORE
++                targets $_CORE
++                halt
++        }
++}
++ 
++proc core_up { args } {
++        global _TARGETNAME
++ 
++        # examine remaining cores
++        foreach _core [set args] {
++                ${_TARGETNAME}$_core arp_examine
++        }
++}

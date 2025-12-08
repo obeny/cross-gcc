@@ -1,0 +1,113 @@
+From 11ecedede4e13405e4c2abd7585de322c10d444f Mon Sep 17 00:00:00 2001
+From: Marcin Benka <marcin.benka@gmail.com>
+Date: Wed, 24 Sep 2025 20:30:59 +0200
+Subject: [PATCH 01/18] [obeny]: AArch64: MMU enable/disable
+
+---
+ src/target/aarch64.c | 41 ++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 34 insertions(+), 7 deletions(-)
+
+diff --git a/src/target/aarch64.c b/src/target/aarch64.c
+index ed9cb48aa..f6d454ede 100644
+--- a/src/target/aarch64.c
++++ b/src/target/aarch64.c
+@@ -120,7 +120,7 @@ static int aarch64_restore_system_control_reg(struct target *target)
+ /*  modify system_control_reg in order to enable or disable mmu for :
+  *  - virt2phys address conversion
+  *  - read or write memory in phys or virt address */
+-static int aarch64_mmu_modify(struct target *target, int enable)
++static int aarch64_mmu_modify(struct target *target, int enable, int flush_dcache)
+ {
+ 	struct aarch64_common *aarch64 = target_to_aarch64(target);
+ 	struct armv8_common *armv8 = &aarch64->armv8_common;
+@@ -141,8 +141,9 @@ static int aarch64_mmu_modify(struct target *target, int enable)
+ 			/*  data cache is active */
+ 			aarch64->system_control_reg_curr &= ~0x4U;
+ 			/* flush data cache armv8 function to be called */
+-			if (armv8->armv8_mmu.armv8_cache.flush_all_data_cache)
+-				armv8->armv8_mmu.armv8_cache.flush_all_data_cache(target);
++			if(flush_dcache)
++				if (armv8->armv8_mmu.armv8_cache.flush_all_data_cache)
++					armv8->armv8_mmu.armv8_cache.flush_all_data_cache(target);
+ 		}
+ 		if ((aarch64->system_control_reg_curr & 0x1U)) {
+ 			aarch64->system_control_reg_curr &= ~0x1U;
+@@ -2517,7 +2518,7 @@ static int aarch64_read_phys_memory(struct target *target,
+ 
+ 	if (count && buffer) {
+ 		/* read memory through APB-AP */
+-		retval = aarch64_mmu_modify(target, 0);
++		retval = aarch64_mmu_modify(target, 0, 1);
+ 		if (retval != ERROR_OK)
+ 			return retval;
+ 		retval = aarch64_read_cpu_memory(target, address, size, count, buffer);
+@@ -2538,7 +2539,7 @@ static int aarch64_read_memory(struct target *target, target_addr_t address,
+ 
+ 	if (mmu_enabled) {
+ 		/* enable MMU as we could have disabled it for phys access */
+-		retval = aarch64_mmu_modify(target, 1);
++		retval = aarch64_mmu_modify(target, 1, 0);
+ 		if (retval != ERROR_OK)
+ 			return retval;
+ 	}
+@@ -2553,7 +2554,7 @@ static int aarch64_write_phys_memory(struct target *target,
+ 
+ 	if (count && buffer) {
+ 		/* write memory through APB-AP */
+-		retval = aarch64_mmu_modify(target, 0);
++		retval = aarch64_mmu_modify(target, 0, 1);
+ 		if (retval != ERROR_OK)
+ 			return retval;
+ 		return aarch64_write_cpu_memory(target, address, size, count, buffer);
+@@ -2575,7 +2576,7 @@ static int aarch64_write_memory(struct target *target, target_addr_t address,
+ 
+ 	if (mmu_enabled) {
+ 		/* enable MMU as we could have disabled it for phys access */
+-		retval = aarch64_mmu_modify(target, 1);
++		retval = aarch64_mmu_modify(target, 1, 0);
+ 		if (retval != ERROR_OK)
+ 			return retval;
+ 	}
+@@ -3039,6 +3040,18 @@ COMMAND_HANDLER(aarch64_handle_disassemble_command)
+ 	return a64_disassemble(CMD, target, address, count);
+ }
+ 
++COMMAND_HANDLER(aarch64_handle_disable_mmu_command)
++{
++	struct target *target = get_current_target(CMD_CTX);
++	return aarch64_mmu_modify(target, 0, 0);
++}
++
++COMMAND_HANDLER(aarch64_handle_enable_mmu_command)
++{
++	struct target *target = get_current_target(CMD_CTX);
++	return aarch64_mmu_modify(target, 1, 0);
++}
++
+ COMMAND_HANDLER(aarch64_mask_interrupts_command)
+ {
+ 	struct target *target = get_current_target(CMD_CTX);
+@@ -3178,6 +3191,20 @@ static const struct command_registration aarch64_exec_command_handlers[] = {
+ 		.help = "display information about target caches",
+ 		.usage = "",
+ 	},
++	{
++		.name = "disable_mmu",
++		.handler = aarch64_handle_disable_mmu_command,
++		.mode = COMMAND_EXEC,
++		.help = "disable mmu and dcache in System Control Register",
++		.usage = "",
++	},
++	{
++		.name = "enable_mmu",
++		.handler = aarch64_handle_enable_mmu_command,
++		.mode = COMMAND_EXEC,
++		.help = "enable mmu and dcache in System Control Register",
++		.usage = "",
++	},
+ 	{
+ 		.name = "dbginit",
+ 		.handler = aarch64_handle_dbginit_command,
+-- 
+2.52.0
+

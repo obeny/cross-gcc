@@ -1,0 +1,24 @@
+From d04010bb259f51652e0b1688de657e0f72129651 Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Thu, 22 Sep 2022 14:57:34 +0800
+Subject: [PATCH 07/18] atlink
+
+---
+ contrib/60-openocd.rules | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/contrib/60-openocd.rules b/contrib/60-openocd.rules
+index 151b4e2c0..fc68db373 100644
+--- a/contrib/60-openocd.rules
++++ b/contrib/60-openocd.rules
+@@ -269,4 +269,7 @@ ATTRS{idVendor}=="c251", ATTRS{idProduct}=="2750", MODE="660", GROUP="plugdev",
+ # CMSIS-DAP compatible adapters
+ ATTRS{product}=="*CMSIS-DAP*", MODE="660", GROUP="plugdev", TAG+="uaccess"
+ 
++# Artery ATLINK
++ATTRS{idVendor}=="2e3c", ATTRS{idProduct}=="f000, MODE="660", GROUP="plugdev", TAG+="uaccess"
++
+ LABEL="openocd_rules_end"
+-- 
+2.52.0
+

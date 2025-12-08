@@ -1,0 +1,25 @@
+From 54d9c37bb065721587b99fefacbad9d0052cfb5c Mon Sep 17 00:00:00 2001
+From: Marcin Benka <marcin.benka@gmail.com>
+Date: Wed, 24 Sep 2025 20:56:27 +0200
+Subject: [PATCH 17/18]  [obeny]: fix enums in at32qspi driver
+
+---
+ src/flash/nor/at32qspi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/flash/nor/at32qspi.c b/src/flash/nor/at32qspi.c
+index 8cc434afb..eb8fc4eb3 100644
+--- a/src/flash/nor/at32qspi.c
++++ b/src/flash/nor/at32qspi.c
+@@ -200,7 +200,7 @@ QSPI_OPERATE_MODE_114,
+ 8, 
+ 0x32, 
+ QSPI_XIP_ADDRLEN_3_BYTE,
+-QSPI_XIP_ADDRLEN_3_BYTE, 
++QSPI_OPERATE_MODE_114, 
+ 0, 
+ QSPI_XIPW_SEL_MODED, 
+ 0x7F, 
+-- 
+2.52.0
+

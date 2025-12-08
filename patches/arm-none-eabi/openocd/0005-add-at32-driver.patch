@@ -1,0 +1,57 @@
+From 059aad10b7182fdd30fa13911e361547bcc0989f Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Tue, 2 Aug 2022 10:08:42 +0800
+Subject: [PATCH 05/18] add at32 driver
+
+---
+ src/flash/nor/driver.h  | 11 +++++++++++
+ src/flash/nor/drivers.c | 13 +++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/src/flash/nor/driver.h b/src/flash/nor/driver.h
+index 2bd204363..56883e9f0 100644
+--- a/src/flash/nor/driver.h
++++ b/src/flash/nor/driver.h
+@@ -314,4 +314,15 @@ extern const struct flash_driver xcf_flash;
+ extern const struct flash_driver xmc1xxx_flash;
+ extern const struct flash_driver xmc4xxx_flash;
+ 
++extern const struct flash_driver at32f403xx_flash;
++extern const struct flash_driver at32f413xx_flash;
++extern const struct flash_driver at32f415xx_flash;
++extern const struct flash_driver at32f403axx_flash;
++extern const struct flash_driver at32f407xx_flash;
++extern const struct flash_driver at32wb415xx_flash;
++extern const struct flash_driver at32f421xx_flash;
++extern const struct flash_driver at32f425xx_flash;
++extern const struct flash_driver at32f435xx_flash;
++extern const struct flash_driver at32f437xx_flash;
++
+ #endif /* OPENOCD_FLASH_NOR_DRIVER_H */
+diff --git a/src/flash/nor/drivers.c b/src/flash/nor/drivers.c
+index 6b0def681..94b0d076a 100644
+--- a/src/flash/nor/drivers.c
++++ b/src/flash/nor/drivers.c
+@@ -92,6 +92,19 @@ static const struct flash_driver * const flash_drivers[] = {
+ 	&xcf_flash,
+ 	&xmc1xxx_flash,
+ 	&xmc4xxx_flash,
++
++	&at32f403xx_flash,
++	&at32f413xx_flash,
++	&at32f415xx_flash,
++	&at32f403axx_flash,
++	&at32f407xx_flash,
++	&at32wb415xx_flash,
++	&at32f421xx_flash,
++	&at32f425xx_flash,
++	&at32f435xx_flash,
++	&at32f437xx_flash,
++
++	NULL,
+ };
+ 
+ const struct flash_driver *flash_driver_find_by_name(const char *name)
+-- 
+2.52.0
+

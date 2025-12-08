@@ -1,0 +1,5346 @@
+From 5d4e4f786d209b38e338d821da55d85c74b81234 Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Tue, 6 Aug 2024 11:47:52 +0800
+Subject: [PATCH 13/18] add at32 qspi support
+
+---
+ src/flash/nor/Makefile.am      |    8 +-
+ src/flash/nor/at32qspi.c       | 1187 ++++++++++++++++++++++++++++++++
+ src/flash/nor/at32qspi.h       |    9 +
+ src/flash/nor/driver.h         |    1 +
+ src/flash/nor/drivers.c        |    2 +-
+ tcl/target/at32f402xx_qspi.cfg |  329 +++++++++
+ tcl/target/at32f405xx_qspi.cfg |  329 +++++++++
+ tcl/target/at32f435xG_qspi.cfg |  559 +++++++++++++++
+ tcl/target/at32f435xM_qspi.cfg |  558 +++++++++++++++
+ tcl/target/at32f435xx_qspi.cfg |  557 +++++++++++++++
+ tcl/target/at32f437xG_qspi.cfg |  559 +++++++++++++++
+ tcl/target/at32f437xM_qspi.cfg |  557 +++++++++++++++
+ tcl/target/at32f437xx_qspi.cfg |  557 +++++++++++++++
+ 13 files changed, 5207 insertions(+), 5 deletions(-)
+ create mode 100644 src/flash/nor/at32qspi.c
+ create mode 100644 src/flash/nor/at32qspi.h
+ create mode 100644 tcl/target/at32f402xx_qspi.cfg
+ create mode 100644 tcl/target/at32f405xx_qspi.cfg
+ create mode 100644 tcl/target/at32f435xG_qspi.cfg
+ create mode 100644 tcl/target/at32f435xM_qspi.cfg
+ create mode 100644 tcl/target/at32f435xx_qspi.cfg
+ create mode 100644 tcl/target/at32f437xG_qspi.cfg
+ create mode 100644 tcl/target/at32f437xM_qspi.cfg
+ create mode 100644 tcl/target/at32f437xx_qspi.cfg
+
+diff --git a/src/flash/nor/Makefile.am b/src/flash/nor/Makefile.am
+index d308ec0e5..b55daeb9c 100644
+--- a/src/flash/nor/Makefile.am
++++ b/src/flash/nor/Makefile.am
+@@ -1,5 +1,3 @@
+-# SPDX-License-Identifier: GPL-2.0-or-later
+-
+ noinst_LTLIBRARIES += %D%/libocdflashnor.la
+ %C%_libocdflashnor_la_SOURCES = \
+ 	%D%/core.c \
+@@ -85,7 +83,8 @@ NOR_DRIVERS = \
+ 	%D%/xmc1xxx.c \
+ 	%D%/xmc4xxx.c \
+ 	%D%/at32f4xx.c \
+-	%D%/at32xx.c
++	%D%/at32xx.c  \
++	%D%/at32qspi.c
+ 
+ NORHEADERS = \
+ 	%D%/artery.h \
+@@ -103,4 +102,5 @@ NORHEADERS = \
+ 	%D%/spi.h \
+ 	%D%/stm32l4x.h \
+ 	%D%/stmqspi.h \
+-	%D%/msp432.h
++	%D%/msp432.h \
++	%D%/at32qspi.h
+diff --git a/src/flash/nor/at32qspi.c b/src/flash/nor/at32qspi.c
+new file mode 100644
+index 000000000..1a39e3dc0
+--- /dev/null
++++ b/src/flash/nor/at32qspi.c
+@@ -0,0 +1,1187 @@
++
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "imp.h"
++#include <helper/binarybuffer.h>
++#include <helper/bits.h>
++#include <helper/time_support.h>
++#include <target/algorithm.h>
++#include <target/armv7m.h>
++#include <target/image.h>
++#include "at32qspi.h"
++#include "sfdp.h"
++
++/* deprecated */
++#define CMD_W0_OFFSET                     0x00
++#define CMD_W1_OFFSET                     0x04
++#define CMD_W2_OFFSET                     0x08
++#define CMD_W3_OFFSET                     0x0C
++#define CTRL_OFFSET                           0x10
++#define FIFOSTS_OFFSET                     0x18
++#define CTRL2_OFFSET                         0x20
++#define CMDSTS_OFFSET                      0x24
++#define RSTS_OFFSET                           0x28
++#define FSIZE_OFFSET                         0x2C
++#define XIP_CMD_W0_OFFSET             0x30
++#define XIP_CMD_W1_OFFSET             0x34
++#define XIP_CMD_W2_OFFSET             0x38
++#define XIP_CMD_W3_OFFSET             0x3C
++#define CTRL3_OFFSET                        0x40
++#define REV_OFFSET                            0x50
++#define DT_OFFSET                              0x100
++
++#define AT32_QSPI_REG(offset)          ((at32_qspi_info->base_addr+offset))
++
++#define AT32_QSPI1_BASE_ADDR      0xA0001000
++#define AT32_QSPI2_BASE_ADDR      0xA0002000
++
++#define QSPI_OPERATE_TIMEOUT       0x100
++#define QSPI_WAIT_TIMEOUT          0x100
++#define QSPI_TXFIFORDY_TIMEOUT     0x100
++#define QSPI_RXFIFORDY_TIMEOUT     0x100
++#define QSPI_SEND_DATA_TIMEOUT     0x100
++#define QSPI_ERASE_SECTOR_TIMEOUT  0x1000
++#define QSPI_ERASE_BLOCK_TIMEOUT   0x10000
++#define QSPI_ERASE_CHIP_TIMEOUT    0x800000
++
++#define  QSPI_SECTOR_SIZE   0x1000
++#define  QSPI_PAGE_SIZE       0x100
++#define  QSPI_BLOCK_SIZE    0x10000
++
++
++
++
++typedef enum
++{
++  QSPI_CMD_INSLEN_0_BYTE                 = 0x00, /*!< qspi no instruction code */
++  QSPI_CMD_INSLEN_1_BYTE                 = 0x01, /*!< qspi instruction code 1 byte */
++  QSPI_CMD_INSLEN_2_BYTE                 = 0x02  /*!< qspi instruction code 2 byte(repeat) */
++} qspi_cmd_inslen_type;
++
++/**
++  * @brief qspi command port address length type
++  */
++typedef enum
++{
++  QSPI_CMD_ADRLEN_0_BYTE                 = 0x00, /*!< qspi  no address */
++  QSPI_CMD_ADRLEN_1_BYTE                 = 0x01, /*!< qspi  address length 1 byte */
++  QSPI_CMD_ADRLEN_2_BYTE                 = 0x02, /*!< qspi  address length 2 byte */
++  QSPI_CMD_ADRLEN_3_BYTE                 = 0x03, /*!< qspi  address length 3 byte */
++  QSPI_CMD_ADRLEN_4_BYTE                 = 0x04  /*!< qspi  address length 4 byte */
++} qspi_cmd_adrlen_type;
++
++/**
++  * @brief qspi operate mode type
++  */
++typedef enum
++{
++  QSPI_OPERATE_MODE_111                  = 0x00, /*!< qspi serial mode */
++  QSPI_OPERATE_MODE_112                  = 0x01, /*!< qspi dual mode */
++  QSPI_OPERATE_MODE_114                  = 0x02, /*!< qspi quad mode */
++  QSPI_OPERATE_MODE_122                  = 0x03, /*!< qspi dual i/o mode */
++  QSPI_OPERATE_MODE_144                  = 0x04, /*!< qspi quad i/o mode */
++  QSPI_OPERATE_MODE_222                  = 0x05, /*!< qspi instruction 2-bit mode */
++  QSPI_OPERATE_MODE_444                  = 0x06  /*!< qspi instruction 4-bit mode(qpi) */
++} qspi_operate_mode_type;
++
++/**
++  * @brief qspi read status configure type
++  */
++typedef enum
++{
++  QSPI_RSTSC_HW_AUTO                     = 0x00, /*!< qspi read status by hardware */
++  QSPI_RSTSC_SW_ONCE                     = 0x01  /*!< qspi read status by software */
++} qspi_read_status_conf_type;
++
++/**
++  * @brief qspi cmd type
++  */
++typedef struct
++{
++  uint8_t                                pe_mode_enable;          /*!< performance enhance mode enable */
++  uint8_t                                pe_mode_operate_code;    /*!< performance enhance mode operate code */
++  uint8_t                                instruction_code;        /*!< instruction code */
++  qspi_cmd_inslen_type           instruction_length;      /*!< instruction code length */
++  uint32_t                               address_code;            /*!< address code */
++  qspi_cmd_adrlen_type           address_length;          /*!< address legnth */
++  uint32_t                               data_counter;            /*!< read/write data counter */
++  uint8_t                                second_dummy_cycle_num;  /*!< number of second dummy state cycle 0~32 */
++  qspi_operate_mode_type                 operation_mode;          /*!< operation mode */
++  qspi_read_status_conf_type             read_status_config;      /*!< config to read status */
++  uint8_t                          read_status_enable;      /*!< config to read status */
++  uint8_t                          write_data_enable;       /*!< enable to write data */
++} at32_qspi_cmd_type;
++
++
++/**
++  * @brief qspi xip r/w address length type
++  */
++typedef enum
++{
++  QSPI_XIP_ADDRLEN_3_BYTE                = 0x00, /*!< qspi xip address length 3 byte */
++  QSPI_XIP_ADDRLEN_4_BYTE                = 0x01  /*!< qspi xip address length 4 byte */
++} qspi_xip_addrlen_type;
++
++
++/**
++  * @brief qspi xip write access mode type
++  */
++typedef enum
++{
++  QSPI_XIPW_SEL_MODED                    = 0x00, /*!< qspi xip write select mode d */
++  QSPI_XIPW_SEL_MODET                    = 0x01  /*!< qspi xip write select mode t */
++} qspi_xip_write_sel_type;
++
++/**
++  * @brief qspi xip read access mode type
++  */
++typedef enum
++{
++  QSPI_XIPR_SEL_MODED                    = 0x00, /*!< qspi xip read select mode d */
++  QSPI_XIPR_SEL_MODET                    = 0x01  /*!< qspi xip read select mode t */
++} qspi_xip_read_sel_type;
++
++/**
++  * @brief qspi xip type
++  */
++typedef struct
++{
++  uint8_t                                read_instruction_code;         /*!< read instruction code */
++  qspi_xip_addrlen_type                  read_address_length;           /*!< read address legnth */
++  qspi_operate_mode_type                 read_operation_mode;           /*!< read operation mode */
++  uint8_t                                read_second_dummy_cycle_num;   /*!< read number of second dummy state cycle 0~32 */
++  uint8_t                                write_instruction_code;        /*!< write instruction code */
++  qspi_xip_addrlen_type                  write_address_length;          /*!< write address legnth */
++  qspi_operate_mode_type                 write_operation_mode;          /*!< write operation mode */
++  uint8_t                                write_second_dummy_cycle_num;  /*!< write number of second dummy state cycle 0~32 */
++  qspi_xip_write_sel_type                write_select_mode;             /*!< write mode d or mode t selection */
++  uint8_t                                write_time_counter;            /*!< write count for mode t */
++  uint8_t                                write_data_counter;            /*!< write count for mode d */
++  qspi_xip_read_sel_type                 read_select_mode;              /*!< read mode d or mode t selection */
++  uint8_t                                read_time_counter;             /*!< read count for mode t */
++  uint8_t                                read_data_counter;             /*!< read count for mode d */
++} at32_qspi_xip_type;
++
++#if 1
++/* cmd read parameters, the address_code and data_counter need to be set in application */
++static  at32_qspi_cmd_type qspi_read_para = {
++0,0,0xEB,QSPI_CMD_INSLEN_1_BYTE,0,QSPI_CMD_ADRLEN_3_BYTE,0,6,QSPI_OPERATE_MODE_144,QSPI_RSTSC_HW_AUTO,0,0};
++
++/* cmd write parameters, the address_code and data_counter need to be set in application */
++static  at32_qspi_cmd_type qspi_write_para = {
++0,0,0x32,QSPI_CMD_INSLEN_1_BYTE,0,QSPI_CMD_ADRLEN_3_BYTE,0,0,QSPI_OPERATE_MODE_114,QSPI_RSTSC_HW_AUTO,0,1};
++#endif
++/*  cmd sector erase parameters, the address_code need to be set in application */
++static  at32_qspi_cmd_type qspi_erase_para = {
++0,0,0x20,QSPI_CMD_INSLEN_1_BYTE,0,QSPI_CMD_ADRLEN_3_BYTE,0,0,QSPI_OPERATE_MODE_111,QSPI_RSTSC_HW_AUTO,0,1};
++
++#if 1
++/*  cmd wren parameters */
++static  at32_qspi_cmd_type qspi_wren_para = {
++0,0,SPIFLASH_WRITE_ENABLE,QSPI_CMD_INSLEN_1_BYTE,0,QSPI_CMD_ADRLEN_0_BYTE,0,0,QSPI_OPERATE_MODE_111,QSPI_RSTSC_HW_AUTO,0,1};
++
++/*  cmd rdsr parameters */
++static  at32_qspi_cmd_type qspi_rdsr_para = {
++0,0,SPIFLASH_READ_STATUS,QSPI_CMD_INSLEN_1_BYTE,0,QSPI_CMD_ADRLEN_0_BYTE,0,0,QSPI_OPERATE_MODE_111,QSPI_RSTSC_HW_AUTO,1,0};
++#endif
++
++/*  cmd mass erase parameters, the address_code need to be set in application */
++static  at32_qspi_cmd_type qspi_mass_erase_para = {
++0,0,SPIFLASH_MASS_ERASE,QSPI_CMD_INSLEN_1_BYTE,0,QSPI_CMD_ADRLEN_0_BYTE,0,0,QSPI_OPERATE_MODE_111,QSPI_RSTSC_HW_AUTO,0,1};
++
++/*  xip parameters */
++static  at32_qspi_xip_type qspi_xip_para = {
++0x6B, 
++QSPI_XIP_ADDRLEN_3_BYTE ,
++QSPI_OPERATE_MODE_114, 
++8, 
++0x32, 
++QSPI_XIP_ADDRLEN_3_BYTE,
++QSPI_XIP_ADDRLEN_3_BYTE, 
++0, 
++QSPI_XIPW_SEL_MODED, 
++0x7F, 
++0x1F, 
++QSPI_XIPR_SEL_MODED, 
++0x7F, 
++0x1F};
++ 
++#undef SPIFLASH_READ
++#undef SPIFLASH_PAGE_PROGRAM
++
++#define SPI_ADSIZE (((at32_qspi_info->saved_ccr >> SPI_ADSIZE_POS) & 0x3) + 1)
++
++#define OPI_CMD(cmd) ((OPI_MODE ? ((((uint16_t)(cmd)) << 8) | (~(cmd) & 0xFFU)) : (cmd)))
++
++/* convert uint32_t into 4 uint8_t in little endian byte order */
++static inline uint32_t h_to_le_32(uint32_t val)
++{
++	uint32_t result;
++
++	h_u32_to_le((uint8_t *)&result, val);
++	return result;
++}
++
++/* Timeout in ms */
++#define SPI_CMD_TIMEOUT			(100)
++#define SPI_PROBE_TIMEOUT		(100)
++#define SPI_MAX_TIMEOUT			(2000)
++#define SPI_MASS_ERASE_TIMEOUT	(400000)
++
++struct sector_info {
++	uint32_t offset;
++	uint32_t size;
++	uint32_t result;
++};
++
++struct at32_qspi_flash_bank {
++	bool probed;
++	char devname[32];
++	bool octo;
++	struct flash_device dev;
++	uint32_t base_addr;
++	uint32_t flash_addr;
++	uint32_t saved_cr;	/* in particular FSEL, DFM bit mask in QUADSPI_CR *AND* OCTOSPI_CR */
++	uint32_t saved_ccr; /* different meaning for QUADSPI and OCTOSPI */
++	uint32_t saved_tcr;	/* only for OCTOSPI */
++	uint32_t saved_ir;	/* only for OCTOSPI */
++	unsigned int sfdp_dummy1;	/* number of dummy bytes for SFDP read for flash1 and octo */
++	unsigned int sfdp_dummy2;	/* number of dummy bytes for SFDP read for flash2 */
++	uint32_t qspi_en;
++	uint32_t flash_id;
++	uint32_t sector_size;
++	uint32_t p_page_size;
++
++	at32_qspi_xip_type xip_struct;
++	at32_qspi_cmd_type cmd_struct;
++	
++};
++
++
++
++FLASH_BANK_COMMAND_HANDLER(at32qspi_flash_bank_command)
++{
++	struct at32_qspi_flash_bank *at32_qspi_info;
++	uint32_t base_addr;
++	uint8_t qspi_cmd;
++
++	LOG_DEBUG("%s", __func__);
++
++	if (CMD_ARGC < 7)
++		return ERROR_COMMAND_SYNTAX_ERROR;
++
++	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[6], base_addr);
++	LOG_INFO("CMD_ARGC %d, base_addr = 0x%x", CMD_ARGC, base_addr);
++#if 1
++	if (CMD_ARGC > 7)
++	{
++		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[7], qspi_cmd);
++		/* Read command */
++		qspi_read_para.instruction_code = qspi_cmd;
++		LOG_INFO("READ command 0x%x", qspi_cmd);
++		
++	}
++
++	if (CMD_ARGC > 8)
++	{
++		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[8], qspi_cmd);
++		/* Read command */
++		qspi_write_para.instruction_code = qspi_cmd;
++		LOG_INFO("Write command 0x%x", qspi_cmd);
++		
++	}
++
++	if (CMD_ARGC > 9)
++	{
++		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[9], qspi_cmd);
++		/* Read command */
++		qspi_erase_para.instruction_code = qspi_cmd;
++		LOG_INFO("Erase command 0x%x", qspi_cmd);
++		
++	}
++
++	if (CMD_ARGC > 10)
++	{
++		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[10], qspi_cmd);
++		/* Read command */
++		qspi_wren_para.instruction_code = qspi_cmd;
++		LOG_INFO("wen command 0x%x", qspi_cmd);
++		
++	}
++#endif
++	at32_qspi_info = malloc(sizeof(struct at32_qspi_flash_bank));
++	if (!at32_qspi_info) {
++		LOG_ERROR("not enough memory");
++		return ERROR_FAIL;
++	}
++
++	bank->driver_priv = at32_qspi_info;
++	at32_qspi_info->sfdp_dummy1 = 0;
++	at32_qspi_info->sfdp_dummy2 = 0;
++	at32_qspi_info->probed = false;
++	at32_qspi_info->base_addr = base_addr;
++	at32_qspi_info->qspi_en = 0;
++
++	return ERROR_OK;
++}
++
++
++#if 0
++static int at32_register_debug(struct target *target, target_addr_t address)
++{
++	int retval;
++	uint32_t data = 0;
++	retval = target_read_u32(target, address,  (uint32_t *)&data);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("read qspi 0x%x error",(uint32_t)address);
++		return retval;
++	}
++	LOG_INFO("read address = 0x%x, read reg = 0x%x", (uint32_t)address, data);
++	return ERROR_OK;
++
++}
++#endif
++static int at32_qspi_wait_status(struct target *target, target_addr_t address, uint32_t bit_offset,  uint8_t set)
++{
++	int retval;
++	uint32_t data = 0, timeout = 0;
++	timeout = 10000000;
++	while ((timeout --) > 0)
++	{
++		retval = target_read_u32(target,address,(uint32_t *) &data);
++		if(retval != ERROR_OK)
++		{
++			return retval;
++		}
++		if((uint32_t)(data & (1 << bit_offset)) == (uint32_t)(set << bit_offset))
++		{
++			break;
++		}
++	}
++	if(timeout == 0)
++	{
++		LOG_INFO("wait staus error: %u. address = 0x%x, read reg = 0x%x", timeout, (uint32_t)address, data);
++		return ERROR_FAIL;
++	}
++	return ERROR_OK;
++
++}
++
++static int at32_qspi_set_reg(struct target *target, target_addr_t address, uint32_t value)
++{
++	int retval;
++	uint32_t data = 0;
++	retval = target_read_u32(target, address,  (uint32_t *)&data);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	data = data | value;
++	
++	retval = target_write_u32(target,address, data);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	retval = target_read_u32(target, address,  (uint32_t *)&data);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	return ERROR_OK;
++}
++
++static int at32_qspi_clear_reg(struct target *target, target_addr_t address, uint32_t value)
++{
++	int retval;
++	uint32_t data = 0;
++	retval = target_read_u32(target, address,  (uint32_t *)&data);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	data = data & (~value);
++	retval = target_write_u32(target,address, data);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	return ERROR_OK;
++}
++
++static int custom_qspi_cmd_send(struct flash_bank *bank, at32_qspi_cmd_type * cmd, uint8_t wait_state)
++{
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	int retval;
++
++	uint32_t w0, w1, w2, w3;
++	
++	w0 = cmd->address_code;
++	
++	w1 = (uint32_t)cmd->address_length;
++       w1 |= (uint32_t)(cmd->second_dummy_cycle_num << 16);
++       w1 |= (uint32_t)(cmd->instruction_length << 24);
++       w1 |= (uint32_t)(cmd->pe_mode_enable << 28);
++
++	w2 = (uint32_t)cmd->data_counter;
++
++	w3 = (uint32_t)(cmd->write_data_enable << 1);
++       w3 |= (uint32_t)(cmd->read_status_enable << 2);
++       w3 |= (uint32_t)(cmd->read_status_config << 3);
++       w3 |= (uint32_t)(cmd->operation_mode << 5);
++       w3 |= (uint32_t)(cmd->pe_mode_operate_code << 16);
++       w3 |= (uint32_t)(cmd->instruction_code << 24);
++
++//	LOG_INFO("Start Write w0 0x%x = 0x%x",  AT32_QSPI_REG(CMD_W0_OFFSET), w0);
++	retval = target_write_u32(target, AT32_QSPI_REG(CMD_W0_OFFSET), w0);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++//	LOG_INFO("Start Write w1 0x%x = 0x%x",  AT32_QSPI_REG(CMD_W1_OFFSET), w1);
++	retval = target_write_u32(target, AT32_QSPI_REG(CMD_W1_OFFSET), w1);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++//	LOG_INFO("Start Write w2 0x%x = 0x%x",  AT32_QSPI_REG(CMD_W2_OFFSET), w2);
++	retval = target_write_u32(target, AT32_QSPI_REG(CMD_W2_OFFSET), w2);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++//	LOG_INFO("Start Write w3 0x%x = 0x%x",  AT32_QSPI_REG(CMD_W3_OFFSET), w3);
++	retval = target_write_u32(target, AT32_QSPI_REG(CMD_W3_OFFSET), w3);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	
++	if(wait_state == 1)
++	{
++		retval = at32_qspi_wait_status(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0, 1);
++		if(retval != ERROR_OK)
++		{
++			return retval;
++		}
++//		at32_register_debug(target, AT32_QSPI_REG(CMDSTS_OFFSET));
++		retval = at32_qspi_set_reg(target, AT32_QSPI_REG(CMDSTS_OFFSET), 1);
++		if(retval != ERROR_OK)
++		{
++			return retval;
++		}
++//		at32_register_debug(target, AT32_QSPI_REG(CMDSTS_OFFSET));
++	}
++	return ERROR_OK;
++
++}
++
++
++static int custom_qspi_xip_send(struct flash_bank *bank, at32_qspi_xip_type * cmd, uint8_t wait_state)
++{
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	int retval;
++
++	uint32_t w0, w1, w2;
++	
++	w0 = (uint32_t)cmd->read_second_dummy_cycle_num;
++  	w0 |= (uint32_t)(cmd->read_operation_mode << 8);
++  	w0 |= (uint32_t)(cmd->read_address_length << 11);
++ 	w0 |= (uint32_t)(cmd->read_instruction_code << 12);
++	
++	w1 = (uint32_t)cmd->write_second_dummy_cycle_num;
++  	w1 |= (uint32_t)(cmd->write_operation_mode << 8);
++  	w1 |= (uint32_t)(cmd->write_address_length << 11);
++  	w1 |= (uint32_t)(cmd->write_instruction_code << 12);
++
++	w2 = (uint32_t)cmd->read_data_counter;
++ 	w2 |= (uint32_t)(cmd->read_time_counter << 8);
++ 	w2 |= (uint32_t)(cmd->read_select_mode << 15);
++ 	w2 |= (uint32_t)(cmd->write_data_counter << 16);
++       w2 |= (uint32_t)(cmd->write_time_counter << 24);
++  	w2 |= (uint32_t)(cmd->write_select_mode << 31);
++	
++
++//	LOG_INFO("Start Write w0 0x%x = 0x%x",  AT32_QSPI_REG(XIP_CMD_W0_OFFSET), w0);
++
++	retval = target_write_u32(target, AT32_QSPI_REG(XIP_CMD_W0_OFFSET), w0);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++	retval = target_write_u32(target, AT32_QSPI_REG(XIP_CMD_W1_OFFSET), w1);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++	retval = target_write_u32(target, AT32_QSPI_REG(XIP_CMD_W2_OFFSET), w2);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++#if 0
++	LOG_INFO("Start Write w3 0x%x = 0x%x",  AT32_QSPI_REG(XIP_CMD_W3_OFFSET), w3);
++	retval = target_write_u32(target, AT32_QSPI_REG(XIP_CMD_W3_OFFSET), w3);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("write qspi 0x%x error", AT32_QSPI_REG(XIP_CMD_W3_OFFSET));
++		return retval;
++	}
++#endif
++	if(wait_state == 1)
++	{
++		retval = at32_qspi_wait_status(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0, 1);
++		if(retval != ERROR_OK)
++		{
++			return retval;
++		}
++
++		retval = at32_qspi_set_reg(target, AT32_QSPI_REG(CMDSTS_OFFSET), 1);
++		if(retval != ERROR_OK)
++		{
++			return retval;
++		}
++	}
++	return ERROR_OK;
++
++}
++
++static int custom_qspi_write_enable(struct flash_bank *bank)
++{
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	at32_qspi_info->cmd_struct = qspi_wren_para;
++	return custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 1);
++
++}
++
++static int custom_qspi_sector_erase(struct flash_bank *bank, uint32_t address)
++{
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	
++	at32_qspi_info->cmd_struct = qspi_erase_para;
++	at32_qspi_info->cmd_struct.address_code = address;
++	return custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 1);
++
++}
++static int custom_qspi_busy_check(struct flash_bank *bank)
++{
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	
++	at32_qspi_info->cmd_struct = qspi_rdsr_para;
++	return custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 1);
++}
++
++static int custom_qspi_xip_enable(struct flash_bank *bank, bool flag)
++{
++#if 1
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	int retval;
++	uint32_t data;
++	retval = target_read_u32(target, AT32_QSPI_REG(CTRL_OFFSET),  (uint32_t *)&data);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++	if((data & 0x100000) == flag)
++		return ERROR_OK;
++
++	retval = at32_qspi_wait_status(target,AT32_QSPI_REG(FIFOSTS_OFFSET) ,0, 1);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	if(flag == true)
++		retval = at32_qspi_set_reg(target, AT32_QSPI_REG(CTRL_OFFSET), (1 << 20));
++	else
++		retval = at32_qspi_clear_reg(target, AT32_QSPI_REG(CTRL_OFFSET), (1 << 20));
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++
++	retval = at32_qspi_wait_status(target, AT32_QSPI_REG(CTRL_OFFSET), 8, 0);
++	if(retval != ERROR_OK)
++	{
++		return retval;
++	}
++	if(flag == true)
++	{
++		retval = at32_qspi_wait_status(target, AT32_QSPI_REG(XIP_CMD_W3_OFFSET), 3, 0);
++		if(retval != ERROR_OK)
++		{
++			return retval;
++		}
++		at32_qspi_info->xip_struct = qspi_xip_para;
++		custom_qspi_xip_send(bank, &at32_qspi_info->xip_struct, 0);
++	}
++	return ERROR_OK;
++#endif
++}
++
++static int qspi_cmd_init(struct flash_bank *bank)
++{
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	int retval;
++       at32_qspi_set_reg(target, 0x40023838, 0x402);
++	   	
++	custom_qspi_xip_enable(bank, false);
++
++	retval = at32_qspi_clear_reg(target, AT32_QSPI_REG(CTRL_OFFSET), ((1 << 4) | (3 << 16) | 3 | (1 << 20)));
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("Clear Register Error");
++		return retval;
++	}
++
++	retval = at32_qspi_set_reg(target, AT32_QSPI_REG(CTRL3_OFFSET), ((1 << 8) | 50));
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("Set QSPI Register Error");
++		return retval;
++	}
++	alive_sleep(1);
++	return ERROR_OK;
++	
++}
++
++static int at32qspi_erase(struct flash_bank *bank, unsigned int first, unsigned int last)
++{
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	unsigned int sector;
++	uint32_t address;
++	int retval = ERROR_OK;
++	custom_qspi_xip_enable(bank, false);
++	LOG_INFO("%s: from sector %u to sector %u", __func__, first, last);
++	
++	if (target->state != TARGET_HALTED) {
++		LOG_ERROR("Target not halted");
++		return ERROR_TARGET_NOT_HALTED;
++	}
++
++	if ((last < first) || (last >= bank->num_sectors)) {
++		LOG_ERROR("Flash sector invalid");
++		return ERROR_FLASH_SECTOR_INVALID;
++	}
++	
++	for (sector = first; sector <= last; sector++) {
++		custom_qspi_write_enable(bank);
++		address = sector * (at32_qspi_info->sector_size);
++//		LOG_INFO("erase sector %d, address = 0x%x", sector, address);
++		retval = custom_qspi_sector_erase(bank, address);
++		if (retval != ERROR_OK)
++			break;
++		retval = custom_qspi_busy_check(bank);
++		if (retval != ERROR_OK)
++			break;
++//		alive_sleep(10);
++//		keep_alive();
++	}
++	LOG_INFO("Erase Success");
++	if (retval != ERROR_OK)
++		LOG_ERROR("Flash sector_erase failed on sector %u", sector);
++	custom_qspi_xip_enable(bank,true);
++	return retval;
++}
++
++static int at32qspi_protect(struct flash_bank *bank, int set,
++	unsigned int first, unsigned int last)
++{
++	unsigned int sector;
++
++	for (sector = first; sector <= last; sector++)
++		bank->sectors[sector].is_protected = set;
++
++	if (set)
++		LOG_WARNING("setting soft protection only, not related to flash's hardware write protection");
++
++	return ERROR_OK;
++}
++
++static int at32qspi_write(struct flash_bank *bank, const uint8_t *buffer,
++	uint32_t offset, uint32_t count)
++{
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	unsigned int  idx, w_len = count;
++	int retval;
++
++	LOG_INFO("%s: offset=0x%08" PRIx32 " count=0x%08" PRIx32,
++		__func__, offset, count);
++	custom_qspi_xip_enable(bank,false);
++	
++	if (target->state != TARGET_HALTED) {
++		LOG_ERROR("Target not halted");
++		return ERROR_TARGET_NOT_HALTED;
++	}
++
++	if (!(at32_qspi_info->probed)) {
++		LOG_ERROR("Flash bank not probed");
++		return ERROR_FLASH_BANK_NOT_PROBED;
++	}
++
++	if (offset + count > bank->size) {
++		LOG_WARNING("Write beyond end of flash. Extra data discarded.");
++		count = bank->size - offset;
++	}
++#if 0		
++	/* Check sector protection */
++	for (sector = 0; sector < bank->num_sectors; sector++) {
++		/* Start offset in or before this sector? */
++		/* End offset in or behind this sector? */
++		if ((offset < (bank->sectors[sector].offset + bank->sectors[sector].size)) &&
++			((offset + count - 1) >= bank->sectors[sector].offset) &&
++			bank->sectors[sector].is_protected) {
++			LOG_ERROR("Flash sector %u protected", sector);
++			return ERROR_FLASH_PROTECTED;
++		}
++	}
++#endif
++	
++	do
++	{
++	      custom_qspi_write_enable(bank);
++		w_len = (offset /at32_qspi_info->dev.pagesize + 1) * at32_qspi_info->dev.pagesize - offset;
++//		LOG_INFO("Write offset = 0x%x, length = 0x%x", offset, w_len);
++		if(count < w_len)
++		{
++			w_len = count;
++		}
++		at32_qspi_info->cmd_struct = qspi_write_para;
++		at32_qspi_info->cmd_struct.address_code = offset;
++		at32_qspi_info->cmd_struct.data_counter = w_len;
++		custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 0);
++
++		for(idx = 0; idx < w_len  / 4; idx ++)
++		{
++			retval = at32_qspi_wait_status(target, AT32_QSPI_REG(FIFOSTS_OFFSET), 0, 1);
++			if(retval != ERROR_OK)
++			{
++				LOG_ERROR("Wait QSPI W FIFOSTS_OFFSET Error");
++				return retval;
++			}
++			retval = target_write_u32(target, AT32_QSPI_REG(DT_OFFSET), *((uint32_t *)buffer + idx));
++			if(retval != ERROR_OK)
++			{
++				LOG_ERROR("Write QSPI DT_OFFSET Error");
++				return retval;
++			}
++		}
++		if((w_len % 4) != 0)
++		{
++			for(idx = 0; idx < w_len % 4; idx ++)
++			{
++				retval = at32_qspi_wait_status(target, AT32_QSPI_REG(FIFOSTS_OFFSET), 0, 1);
++				if(retval != ERROR_OK)
++				{
++					LOG_ERROR("Wait QSPI W FIFOSTS_OFFSET Error");
++					return retval;
++				}
++				retval = target_write_u8(target, AT32_QSPI_REG(DT_OFFSET), *(buffer  + w_len - (w_len % 4 - idx)));
++				if(retval != ERROR_OK)
++				{
++					LOG_ERROR("Write QSPI DT_OFFSET Error");
++					return retval;
++				}
++			}
++		}
++
++		count -= w_len;
++		offset += w_len;
++		buffer += w_len;
++
++		retval = at32_qspi_wait_status(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0, 1);
++		if(retval != ERROR_OK)
++		{
++			LOG_ERROR("Wait QSPI CMDSTS_OFFSET FLAG  Error");
++			return retval;
++		}
++
++		retval = target_write_u32(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0x1);
++		if(retval != ERROR_OK)
++		{
++			LOG_ERROR("Read QSPI CMDSTS_OFFSET Error");
++			return retval;
++		}
++		custom_qspi_busy_check(bank);
++	
++	}while(count);
++	custom_qspi_xip_enable(bank,true);
++	LOG_INFO("Write Success");
++	return ERROR_OK;
++}
++
++
++static int at32qspi_read(struct flash_bank *bank, uint8_t *buffer,
++	uint32_t offset, uint32_t count)
++{
++LOG_INFO("%s: offset=0x%08" PRIx32 " count=0x%08" PRIx32,
++		__func__, offset, count);
++#if 1
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	unsigned int idx, r_len = count;
++	int retval;
++	
++
++	LOG_INFO("%s: offset=0x%08" PRIx32 " count=0x%08" PRIx32,
++		__func__, offset, count);
++	at32_qspi_info->cmd_struct = qspi_read_para;
++	at32_qspi_info->cmd_struct.address_code = offset;
++	at32_qspi_info->cmd_struct.data_counter = count;
++	custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 0);
++
++	do
++	{
++		if(count >= 128)
++		{
++			r_len = 128;
++		}
++		else
++		{
++			r_len = count;
++		}
++		retval = at32_qspi_wait_status(target, AT32_QSPI_REG(FIFOSTS_OFFSET), 1, 1);
++		if(retval != ERROR_OK)
++		{
++			LOG_ERROR("Read QSPI R FIFO Status Error");
++			return retval;
++		}
++		for(idx = 0; idx < r_len; idx ++)
++		{
++			retval = target_read_u8(target, AT32_QSPI_REG(DT_OFFSET), buffer);
++			if(retval != ERROR_OK)
++			{
++				LOG_ERROR("Read QSPI Data Error");
++				return retval;
++			}
++			buffer ++;
++		}
++		count -= r_len;
++
++	}while(count);
++#endif
++	retval = at32_qspi_wait_status(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0, 1);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("Wait QSPI CMDSTS_OFFSET FLAG  Error");
++		return retval;
++	}
++
++	retval = target_write_u32(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0x1);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("Read QSPI CMDSTS_OFFSET Error");
++		return retval;
++	}
++	return ERROR_OK;
++}
++
++#if 1
++static int at32_qspi_read_flash_id(struct flash_bank *bank, uint32_t *flash_id)
++{
++	struct target *target = bank->target;
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	int retval;
++	uint8_t id[3];
++	at32_qspi_info->cmd_struct = qspi_read_para;
++       at32_qspi_info->cmd_struct.instruction_code = SPIFLASH_READ_ID;
++	at32_qspi_info->cmd_struct.address_length = QSPI_CMD_ADRLEN_0_BYTE;
++	at32_qspi_info->cmd_struct.address_code = 0;
++	at32_qspi_info->cmd_struct.operation_mode = QSPI_OPERATE_MODE_111;
++	at32_qspi_info->cmd_struct.second_dummy_cycle_num= 0;
++	at32_qspi_info->cmd_struct.data_counter = 3;
++	custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 0);
++
++	retval = at32_qspi_wait_status(target, AT32_QSPI_REG(FIFOSTS_OFFSET), 1, 1);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("read qspi DT_OFFSET error");
++		return retval;
++	}
++	for(uint8_t i = 0; i < 3; i ++)
++	{
++		retval = target_read_u8(target, AT32_QSPI_REG(DT_OFFSET), &id[i]);
++		if(retval != ERROR_OK)
++		{
++			LOG_ERROR("read qspi  xip_cmd_w3 error");
++			return retval;
++		}
++	}
++
++#if 1
++	retval = at32_qspi_wait_status(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0, 1);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("read qspi DT_OFFSET error");
++		return retval;
++	}
++
++	retval = target_write_u32(target, AT32_QSPI_REG(CMDSTS_OFFSET), 0x1);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("read qspi DT_OFFSET error");
++		return retval;
++	}
++#endif
++      *flash_id = id[0] | (id[1] << 8) | (id[2] << 16);
++	LOG_INFO("Read Flash id = 0x%x", *flash_id);
++	return ERROR_OK;
++}
++#endif
++static int at32qspi_probe(struct flash_bank *bank)
++{
++	struct at32_qspi_flash_bank *at32_qspi_info = bank->driver_priv;
++	const struct flash_device *p;
++	uint32_t data;
++	int retval;
++	uint32_t flash_id;
++
++#if 0
++     struct target *target = bank->target;
++	at32_register_debug(target, 0x40023838);
++	at32_register_debug(target, 0x400238A0);
++       at32_register_debug(target, 0x40023C60);
++	at32_register_debug(target, 0x40023C00);
++	at32_register_debug(target, 0x40020400);
++	at32_register_debug(target, 0x40020408);
++	at32_register_debug(target, 0x40020420);
++	at32_register_debug(target, 0x40020424);
++	at32_register_debug(target, 0x40020800);
++	at32_register_debug(target, 0x40020808);
++	at32_register_debug(target, 0x40020820);
++	at32_register_debug(target, 0x40020824);
++#endif
++	/* calculate numbers of pages */
++	int num_pages = 4096;
++
++	/* check that calculation result makes sense */
++	assert(num_pages > 0);
++
++	if (bank->sectors) {
++		free(bank->sectors);
++		bank->sectors = NULL;
++	}
++
++	if (bank->prot_blocks) {
++		free(bank->prot_blocks);
++		bank->prot_blocks = NULL;
++	}
++	bank->size = 1024 * 1024 * 16;
++	bank->num_sectors = num_pages;
++	
++	bank->sectors = alloc_block_array(0, QSPI_SECTOR_SIZE, num_pages);
++	if (!bank->sectors)
++		return ERROR_FAIL;
++
++	/* calculate number of write protection blocks */
++	int num_prot_blocks = num_pages / 2;
++	if (num_prot_blocks > 32)
++		num_prot_blocks = 32;
++
++	bank->num_prot_blocks = num_prot_blocks;
++	bank->prot_blocks = alloc_block_array(0, 2 * QSPI_SECTOR_SIZE, num_prot_blocks);
++	if (!bank->prot_blocks)
++		return ERROR_FAIL;
++
++	if (num_prot_blocks == 32)
++		bank->prot_blocks[31].size = (num_pages - (31 * 2)) * QSPI_SECTOR_SIZE;
++
++	at32_qspi_info->probed = 1;
++#if 1
++	retval = target_read_u32(bank->target, 0x40023838, (uint32_t *) &data);
++	if(retval != ERROR_OK)
++	{
++		LOG_ERROR("read qspi clock error");
++	}
++#endif
++	if(AT32_QSPI1_BASE_ADDR == at32_qspi_info->base_addr)
++	{
++		if((data & 0x00000002) == 0x00)
++			return ERROR_OK;
++	}
++	else if(AT32_QSPI2_BASE_ADDR == at32_qspi_info->base_addr)
++	{
++		if((data & 0x00000400) == 0x00)
++			return ERROR_OK;
++	}
++#if 1
++	else
++	{
++		return ERROR_OK;
++	}
++#endif
++	at32_qspi_info->dev.sectorsize = QSPI_SECTOR_SIZE;
++	at32_qspi_info->dev.pagesize = QSPI_PAGE_SIZE;
++	at32_qspi_info->p_page_size = QSPI_PAGE_SIZE;
++
++	qspi_cmd_init(bank);
++	at32_qspi_info->flash_id = 0;
++	at32_qspi_info->sector_size = QSPI_SECTOR_SIZE;
++	if(at32_qspi_read_flash_id(bank, &flash_id) == ERROR_OK)
++	{
++		for (p = flash_devices; flash_id && p->name ; p++) {
++			if (p->device_id == flash_id) {
++				memcpy(&at32_qspi_info->dev, p, sizeof(at32_qspi_info->dev));
++				if (p->size_in_bytes / 4096)
++					LOG_INFO("QSPI flash \'%s\' id = 0x%06" PRIx32 " size = %" PRIu32
++						"kbytes", p->name, flash_id, p->size_in_bytes / 1024);
++				else
++					LOG_INFO("QSPI flash \'%s\' id = 0x%06" PRIx32 " size = %" PRIu32
++						"bytes", p->name, flash_id, p->size_in_bytes);
++				bank->size = p->size_in_bytes;
++				bank->num_sectors = p->size_in_bytes /QSPI_SECTOR_SIZE;
++#if 0
++				at32_qspi_info->flash_id = flash_id;
++				bank->size = p->size_in_bytes;
++				bank->num_sectors = p->size_in_bytes / p->sectorsize;
++				bank->sectors = alloc_block_array(0, p->sectorsize, bank->num_sectors );
++				if (!bank->sectors)
++					return ERROR_FAIL;
++
++				num_prot_blocks = bank->num_sectors / 2;
++				if (num_prot_blocks > 32)
++					num_prot_blocks = 32;
++				
++				bank->num_prot_blocks = num_prot_blocks;
++				bank->prot_blocks = alloc_block_array(0, 2 *  p->sectorsize, num_prot_blocks);
++				if (!bank->prot_blocks)
++					return ERROR_FAIL;
++				if (num_prot_blocks == 32)
++					bank->prot_blocks[31].size = (num_pages - (31 * 2)) * p->sectorsize;
++#endif				
++				break;
++			}
++		}
++
++		
++		
++	}
++	else
++	{
++		LOG_INFO("AT32 QSPI Read Flash ID ERROR");
++	}
++	return ERROR_OK;
++	
++}
++
++static int at32qspi_auto_probe(struct flash_bank *bank)
++{
++	return at32qspi_probe(bank);
++}
++
++static int get_at32qspi_info(struct flash_bank *bank, struct command_invocation *cmd)
++{
++	LOG_INFO("Get AT32 QSPI infomation ");
++	return ERROR_OK;
++}
++static int at32qspi_blank_check(struct flash_bank *bank)
++{
++	LOG_INFO("AT32 QSPI Blank Check");
++	return ERROR_OK;
++}
++static int at32qspi_protect_check(struct flash_bank *bank)
++{
++	LOG_INFO("AT32 QSPI Protect Check");
++	return ERROR_OK;
++}
++static int at32qspi_verify(struct flash_bank *bank, const uint8_t *buffer,
++	uint32_t offset, uint32_t count)
++{
++	LOG_INFO("AT32 QSPI Verify ");
++	return ERROR_OK;
++}
++
++COMMAND_HANDLER(at32qspi_handle_mass_erase_command)
++{
++	struct at32_qspi_flash_bank *at32_qspi_info;
++	
++
++	if (CMD_ARGC < 1)
++		return ERROR_COMMAND_SYNTAX_ERROR;
++
++	struct flash_bank *bank;
++	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
++	if (retval != ERROR_OK)
++		return retval;
++	
++	at32_qspi_info = bank->driver_priv;
++
++	if(at32_qspi_info->base_addr != AT32_QSPI1_BASE_ADDR && at32_qspi_info->base_addr != AT32_QSPI2_BASE_ADDR)
++	{
++		LOG_INFO("Error Canmand qspi mass erase");
++		return ERROR_COMMAND_SYNTAX_ERROR;
++	}
++	custom_qspi_xip_enable(bank,false);
++	
++	
++#if 0
++	if(at32_qspi_info->flash_id != 0)
++	{
++		at32_qspi_info->cmd_struct.instruction_code = at32_qspi_info->dev.chip_erase_cmd;
++	}
++#endif
++	LOG_INFO("start at32 qspi mass erase wait....");
++	custom_qspi_write_enable(bank);
++	at32_qspi_info->cmd_struct = qspi_mass_erase_para;
++	at32_qspi_info->cmd_struct.address_code = 0;
++	retval = custom_qspi_cmd_send(bank, &at32_qspi_info->cmd_struct, 1);
++	retval = custom_qspi_busy_check(bank);
++	custom_qspi_xip_enable(bank,true);
++	LOG_INFO("at32 qspi mass erase complete");
++	return retval;
++}
++
++static const struct command_registration at32qspi_exec_command_handlers[] = {
++	{
++		.name = "qspi_mass_erase",
++		.handler = at32qspi_handle_mass_erase_command,
++		.mode = COMMAND_EXEC,
++		.usage = "bank_id",
++		.help = "mass erase qspi flash device.",
++	},
++	COMMAND_REGISTRATION_DONE
++};
++
++
++static const struct command_registration at32qspi_command_handlers[] = {
++	{
++		.name = "at32qspi",
++		.mode = COMMAND_ANY,
++		.help = "at32qspi flash command group",
++		.usage = "",
++		.chain = at32qspi_exec_command_handlers,
++	},
++	COMMAND_REGISTRATION_DONE
++};
++
++struct flash_driver at32qspi_flash = {
++	.name = "at32qspi",
++	.commands = at32qspi_command_handlers,
++	.flash_bank_command = at32qspi_flash_bank_command,
++	.erase = at32qspi_erase,
++	.protect = at32qspi_protect,
++	.write = at32qspi_write,
++	.read = at32qspi_read,\
++	.verify = at32qspi_verify,
++	.probe = at32qspi_probe,
++	.auto_probe = at32qspi_auto_probe,
++	.erase_check = at32qspi_blank_check,
++	.protect_check = at32qspi_protect_check,
++	.info = get_at32qspi_info,
++	.free_driver_priv = default_flash_free_driver_priv,
++};
+diff --git a/src/flash/nor/at32qspi.h b/src/flash/nor/at32qspi.h
+new file mode 100644
+index 000000000..c30e5764d
+--- /dev/null
++++ b/src/flash/nor/at32qspi.h
+@@ -0,0 +1,9 @@
++
++
++#ifndef AT32_QSPI_H
++#define AT32_QSPI_H
++
++#include "spi.h"
++
++
++#endif
+diff --git a/src/flash/nor/driver.h b/src/flash/nor/driver.h
+index 7b308cbcf..a8e1dcf2e 100644
+--- a/src/flash/nor/driver.h
++++ b/src/flash/nor/driver.h
+@@ -326,5 +326,6 @@ extern const struct flash_driver at32f435xx_flash;
+ extern const struct flash_driver at32f437xx_flash;
+ extern const struct flash_driver at32f423xx_flash;
+ extern const struct flash_driver at32f4xx_flash;
++extern const struct flash_driver at32qspi_flash;
+ 
+ #endif /* OPENOCD_FLASH_NOR_DRIVER_H */
+diff --git a/src/flash/nor/drivers.c b/src/flash/nor/drivers.c
+index 13e00a784..3d1756bcd 100644
+--- a/src/flash/nor/drivers.c
++++ b/src/flash/nor/drivers.c
+@@ -118,7 +118,7 @@ static const struct flash_driver * const flash_drivers[] = {
+ 	&at32f437xx_flash,
+ 	&at32f423xx_flash,
+ 	&at32f4xx_flash,
+-
++	&at32qspi_flash,
+ 	NULL,
+ };
+ 
+diff --git a/tcl/target/at32f402xx_qspi.cfg b/tcl/target/at32f402xx_qspi.cfg
+new file mode 100644
+index 000000000..837b39f5d
+--- /dev/null
++++ b/tcl/target/at32f402xx_qspi.cfg
+@@ -0,0 +1,329 @@
++# script for AT32f4xx family
++
++#
++# AT32 devices support both JTAG and SWD transports.
++#
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f4xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++
++# flash size will be probed
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME at32f4xx 0x08000000 0 0 0 $_TARGETNAME 0x40023C00 0x1FFFF800
++
++
++# enable at32 qspi1
++set QSPI1 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++    set a [llength [flash list]]
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++	qspi1_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x0000003F 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000002 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	 set QSPI1_IO0_PC9 1  ;#PC9
++	# set QSPI1_IO0_PB5 1 ;#PB5
++	# set QSPI1_IO0_PF6 1    ;#PF6
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	 set QSPI1_IO1_PB7 1 ;#PB7
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	 set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PA6 1 ;#PA6
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	 set QSPI1_IO3_PC5 1 ;#PC5
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	 set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PB4 1 ;#PB4
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	 set QSPI1_CS_PC11 1 ;#PC11
++	# set QSPI1_CS_PA2 1 ;#PA2
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PB5, PF6
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0B000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000B 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000B000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB5] && $QSPI1_IO0_PB5 } {	
++		mmw 0x40020400 0x00000800 0
++		mmw 0x40020408 0x00000400 0
++		mmw 0x40020420 0x00B00000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF6] && $QSPI1_IO0_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x0B000000 0
++	}
++	
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB7, PB10, PC10
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xB0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB7] && $QSPI1_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0xB0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000B00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000B00 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA6, PA15, PC4, PC8
++	
++	if { [info exists QSPI1_IO2_PA6] && $QSPI1_IO2_PA6 } {	
++	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0D000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xB0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000B0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x0000000B 0
++	}
++	
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000B000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00B00000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PB4
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000B00 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB4] && $QSPI1_SCK_PB4 } {	
++		mmw 0x40020400 0x00000200 0
++		mmw 0x40020408 0x00000100 0
++		mmw 0x40020420 0x000B0000 0
++	}
++	
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PA2, PB6, PB9, PB10, PC11
++	
++	if { [info exists QSPI1_CS_PA2] && $QSPI1_CS_PA2 } {	
++		mmw 0x40020000 0x00000020 0
++		mmw 0x40020008 0x00000010 0
++		mmw 0x40020020 0x00000B00 0
++	}
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0B000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000D00 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x0000B000 0
++	}
++}	
+diff --git a/tcl/target/at32f405xx_qspi.cfg b/tcl/target/at32f405xx_qspi.cfg
+new file mode 100644
+index 000000000..837b39f5d
+--- /dev/null
++++ b/tcl/target/at32f405xx_qspi.cfg
+@@ -0,0 +1,329 @@
++# script for AT32f4xx family
++
++#
++# AT32 devices support both JTAG and SWD transports.
++#
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f4xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++
++# flash size will be probed
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME at32f4xx 0x08000000 0 0 0 $_TARGETNAME 0x40023C00 0x1FFFF800
++
++
++# enable at32 qspi1
++set QSPI1 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++    set a [llength [flash list]]
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	sleep 1
++	qspi1_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C00 0x000001F1
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x0000003F 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000002 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	 set QSPI1_IO0_PC9 1  ;#PC9
++	# set QSPI1_IO0_PB5 1 ;#PB5
++	# set QSPI1_IO0_PF6 1    ;#PF6
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	 set QSPI1_IO1_PB7 1 ;#PB7
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	 set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PA6 1 ;#PA6
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	 set QSPI1_IO3_PC5 1 ;#PC5
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	 set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PB4 1 ;#PB4
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	 set QSPI1_CS_PC11 1 ;#PC11
++	# set QSPI1_CS_PA2 1 ;#PA2
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PB5, PF6
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0B000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000B 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000B000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB5] && $QSPI1_IO0_PB5 } {	
++		mmw 0x40020400 0x00000800 0
++		mmw 0x40020408 0x00000400 0
++		mmw 0x40020420 0x00B00000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF6] && $QSPI1_IO0_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x0B000000 0
++	}
++	
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB7, PB10, PC10
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xB0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB7] && $QSPI1_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0xB0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000B00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000B00 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA6, PA15, PC4, PC8
++	
++	if { [info exists QSPI1_IO2_PA6] && $QSPI1_IO2_PA6 } {	
++	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0D000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xB0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000B0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x0000000B 0
++	}
++	
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000B000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00B00000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PB4
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000B00 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB4] && $QSPI1_SCK_PB4 } {	
++		mmw 0x40020400 0x00000200 0
++		mmw 0x40020408 0x00000100 0
++		mmw 0x40020420 0x000B0000 0
++	}
++	
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PA2, PB6, PB9, PB10, PC11
++	
++	if { [info exists QSPI1_CS_PA2] && $QSPI1_CS_PA2 } {	
++		mmw 0x40020000 0x00000020 0
++		mmw 0x40020008 0x00000010 0
++		mmw 0x40020020 0x00000B00 0
++	}
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0B000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000B0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000D00 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x0000B000 0
++	}
++}	
+diff --git a/tcl/target/at32f435xG_qspi.cfg b/tcl/target/at32f435xG_qspi.cfg
+new file mode 100644
+index 000000000..ec84907d8
+--- /dev/null
++++ b/tcl/target/at32f435xG_qspi.cfg
+@@ -0,0 +1,559 @@
++
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f435xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME
++set _FLASHNAME $_CHIPNAME.bank2
++flash bank $_FLASHNAME $_CHIPNAME 0x08080000 0 0 0 $_TARGETNAME
++
++# enable at32 qspi1
++set QSPI1 1
++
++# enable at32 qspi2
++# set QSPI2 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++if { [info exists QSPI2] && $QSPI2 } {
++	set _QSPINAME $_CHIPNAME.qspi2
++	flash bank $_QSPINAME at32qspi 0xB0000000 0 0 0 $_TARGETNAME 0xA0002000
++}
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++	qspi1_init
++#	qspi2_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	# set QSPI1_IO0_PC9 1 ;#PC9
++	# set QSPI1_IO0_PD11 1 ;#PD11
++	set QSPI1_IO0_PF8 1    ;#PF8
++	# set QSPI1_IO0_PH2 1 ;#PH2
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	# set QSPI1_IO1_PD12 1 ;#PD12
++	  set QSPI1_IO1_PF9 1 ;#PF9
++	# set QSPI1_IO1_PH3 1 ;#PH3
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	# set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PE2 1 ;#PE2
++	  set QSPI1_IO2_PF7 1 ;#PF7
++	# set QSPI1_IO2_PG9 1 ;#PG9
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	# set QSPI1_IO3_PC5 1 ;#PC5
++	# set QSPI1_IO3_PD13 1 ;#PD13
++	  set QSPI1_IO3_PF6 1 ;#PF6
++	# set QSPI1_IO3_PG14 1 ;#PG14
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	# set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PD3 1 ;#PD3
++	  set QSPI1_SCK_PF10 1 ;#PF10
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	# set QSPI1_CS_PC11 1 ;#PC11
++	  set QSPI1_CS_PG6 1 ;#PG6
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PD11, PF8, PH2
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO0_PD11] && $QSPI1_IO0_PD11 } {	
++		mmw 0x40020C00 0x00800000 0
++		mmw 0x40020C08 0x00400000 0
++		mmw 0x40020C24 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF8] && $QSPI1_IO0_PF8 } {	
++		mmw 0x40021400 0x00020000 0
++		mmw 0x40021408 0x00010000 0
++		mmw 0x40021424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH2] && $QSPI1_IO0_PH2 } {	
++		mmw 0x40021C00 0x00000020 0
++		mmw 0x40021C08 0x00000010 0
++		mmw 0x40021C20 0x00000A00 0
++	}
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB10, PC10, PD12, PF9, PH3
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PD12] && $QSPI1_IO1_PD12 } {	
++		mmw 0x40020C00 0x02000000 0
++		mmw 0x40020C08 0x01000000 0
++		mmw 0x40020C24 0x00090000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PF9] && $QSPI1_IO1_PF9 } {	
++		mmw 0x40021400 0x00080000 0
++		mmw 0x40021408 0x00040000 0
++		mmw 0x40021424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH3] && $QSPI1_IO0_PH3 } {	
++		mmw 0x40021C00 0x00000080 0
++		mmw 0x40021C08 0x00000040 0
++		mmw 0x40021C20 0x0000A000 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA15, PC4, PC8, PE2, PF7, PG9
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000A0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x00000009 0
++	}
++	
++	if { [info exists QSPI1_IO2_PE2] && $QSPI1_IO2_PE2 } {	
++	
++		mmw 0x40021000 0x00000020 0
++		mmw 0x40021008 0x00000010 0
++		mmw 0x40021020 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_IO2_PF7] && $QSPI1_IO2_PF7 } {	
++	
++		mmw 0x40021400 0x00008000 0
++		mmw 0x40021408 0x00004000 0
++		mmw 0x40021420 0x90000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PG9] && $QSPI1_IO2_PG9 } {	
++		mmw 0x40021800 0x00080000 0
++		mmw 0x40021808 0x00040000 0
++		mmw 0x40021824 0x00000090 0
++	}
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5, PD13, PF6, PG14
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00a00000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PD13] && $QSPI1_IO3_PD13 } {	
++		mmw 0x40020C00 0x08000000 0
++		mmw 0x40020C08 0x04000000 0
++		mmw 0x40020C24 0x00900000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PF6] && $QSPI1_IO3_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x09000000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PG14] && $QSPI1_IO3_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x09000000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PD3, PF10
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_SCK_PD3] && $QSPI1_SCK_PD3 } {	
++		mmw 0x40020C00 0x00000080 0
++		mmw 0x40020C08 0x00000040 0
++		mmw 0x40020C20 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_SCK_PF10] && $QSPI1_SCK_PF10 } {	
++		mmw 0x40021400 0x00200000 0
++		mmw 0x40021408 0x00100000 0
++		mmw 0x40021424 0x00000900 0
++	}
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PB6, PB9, PB10, PC11, PG6
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x00009000 0
++	}
++	
++	if { [info exists QSPI1_CS_PG6] && $QSPI1_CS_PG6 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021820 0x0A000000 0
++	}
++}	
++
++proc qspi2_init { } {
++	global a
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI2 and QSPI2 Clock
++	
++###################Select QSPI2 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI2_IO0_PB0 1 ;#PB0
++	# set QSPI2_IO0_PE7 1 ;#PE7
++	 set QSPI2_IO0_PG14 1 ;#PG14
++	
++	# set QSPI2_IO1_PA15 1 ;#PA15
++	# set QSPI2_IO1_PB7 1 ;#PB7
++	# set QSPI2_IO1_PC3 1 ;#PC3
++	# set QSPI2_IO1_PE8 1 ;#PE8
++	  set QSPI2_IO1_PG12 1 ;#PG12
++	
++	# set QSPI2_IO2_PA5 1 ;#PA5
++	# set QSPI2_IO2_PE9  1 ;#PE9
++	# set QSPI2_IO2_PG10 1 ;#PG10
++	
++	# set QSPI2_IO3_PA3 1 ;#PA3
++	# set QSPI2_IO3_PE10  1 ;#PE10
++	# set QSPI2_IO3_PG11 1 ;#PG11
++	
++	
++	# set QSPI2_SCK_PB1 1 ;#PB1
++	# set QSPI2_SCK_PG13  1 ;#PG13
++	  
++	# set QSPI2_CS_PB8 1 ;#PB8
++	# set QSPI2_CS_PG8  1 ;#PG8
++	
++	
++##############################QSPI2_IO0###############################	
++	# QSPI_IO0: PB0, PE7, PG14
++	
++	if { [info exists QSPI2_IO0_PB0] && $QSPI2_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x00000009 0
++	}
++	
++	if { [info exists QSPI2_IO0_PE7] && $QSPI2_IO0_PE7 } {	
++		mmw 0x40021000 0x00008000 0
++		mmw 0x40021008 0x00004000 0
++		mmw 0x40021020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI2_IO0_PG14] && $QSPI2_IO0_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x05000000 0
++	}
++	
++##############################QSPI2_IO1###############################	
++	#QSPI_IO1: PA15, PB7, PC3, PE8, PG12
++	
++	if { [info exists QSPI2_IO1_PA15] && $QSPI2_IO1_PA15 } {	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PB7] && $QSPI2_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PC3] && $QSPI2_IO1_PC3 } {	
++		mmw 0x40020800 0x00000080 0
++		mmw 0x40020808 0x00000040 0
++		mmw 0x40020820 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PE8] && $QSPI2_IO1_PE8 } {	
++		mmw 0x40021000 0x00020000 0
++		mmw 0x40021000 0x00010000 0
++		mmw 0x40021024 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_IO1_PG12] && $QSPI2_IO1_PG12 } {	
++		mmw 0x40021800 0x02000000 0
++		mmw 0x40021808 0x01000000 0
++		mmw 0x40021824 0x00050000 0
++	}
++	
++##############################QSPI2_IO2###############################		
++	#QSPI_IO2: PA5, PE9, PG10
++	
++	if { [info exists QSPI2_IO2_PA5] && $QSPI2_IO2_PA5 } {	
++	
++		mmw 0x40020000 0x00000800 0
++		mmw 0x40020008 0x00000400 0
++		mmw 0x40020020 0x00900000 0
++	}
++	
++	if { [info exists QSPI2_IO2_PE9] && $QSPI2_IO2_PE9 } {	
++	
++		mmw 0x40021000 0x00080000 0
++		mmw 0x40021008 0x00040000 0
++		mmw 0x40021024 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_IO2_PG10] && $QSPI2_IO2_PG10 } {	
++		mmw 0x40021800 0x00200000 0
++		mmw 0x40021808 0x00100000 0
++		mmw 0x40021824 0x00000500 0
++	}
++	
++##############################QSPI2_IO3###############################		
++	#QSPI_IO3: PA3, PE10, PG11
++	
++	if { [info exists QSPI2_IO3_PA3] && $QSPI2_IO3_PA3 } {	
++	
++		mmw 0x40020000 0x00000080 0
++		mmw 0x40020008 0x00000040 0
++		mmw 0x40020020 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO3_PE10] && $QSPI2_IO3_PE10 } {	
++	
++		mmw 0x40021000 0x00200000 0
++		mmw 0x40021008 0x00100000 0
++		mmw 0x40021024 0x00000A00 0
++	}
++	
++	if { [info exists QSPI2_IO3_PG11] && $QSPI2_IO3_PG11 } {	
++		mmw 0x40021800 0x00800000 0
++		mmw 0x40021808 0x00400000 0
++		mmw 0x40021824 0x00005000 0
++	}
++	
++##############################QSPI2_SCK###############################		
++	#QSPI_SCK: PB1, PG13
++	
++	if { [info exists QSPI2_SCK_PB1] && $QSPI2_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_SCK_PG13] && $QSPI2_SCK_PG13 } {	
++		mmw 0x40021800 0x08000000 0
++		mmw 0x40021808 0x04000000 0
++		mmw 0x40021824 0x00500000 0
++	}
++
++	
++##############################QSPI2_CS###############################		
++	#QSPI_CS: PB8, PG8
++	
++	if { [info exists QSPI2_CS_PB8] && $QSPI2_CS_PB8 } {	
++		mmw 0x40020400 0x00020000 0
++		mmw 0x40020408 0x00010000 0
++		mmw 0x40020424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_CS_PG8] && $QSPI2_CS_PG8 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021824 0x00000005 0
++	}
++}	
+diff --git a/tcl/target/at32f435xM_qspi.cfg b/tcl/target/at32f435xM_qspi.cfg
+new file mode 100644
+index 000000000..2749a2a2e
+--- /dev/null
++++ b/tcl/target/at32f435xM_qspi.cfg
+@@ -0,0 +1,558 @@
++
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f435xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME
++set _FLASHNAME $_CHIPNAME.bank2
++flash bank $_FLASHNAME $_CHIPNAME 0x08200000 0 0 0 $_TARGETNAME
++
++# enable at32 qspi1
++set QSPI1 1
++
++# enable at32 qspi2
++# set QSPI2 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++if { [info exists QSPI2] && $QSPI2 } {
++	set _QSPINAME $_CHIPNAME.qspi2
++	flash bank $_QSPINAME at32qspi 0xB0000000 0 0 0 $_TARGETNAME 0xA0002000
++}
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++	qspi1_init
++#	qspi2_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	# set QSPI1_IO0_PC9 1 ;#PC9
++	# set QSPI1_IO0_PD11 1 ;#PD11
++	set QSPI1_IO0_PF8 1    ;#PF8
++	# set QSPI1_IO0_PH2 1 ;#PH2
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	# set QSPI1_IO1_PD12 1 ;#PD12
++	  set QSPI1_IO1_PF9 1 ;#PF9
++	# set QSPI1_IO1_PH3 1 ;#PH3
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	# set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PE2 1 ;#PE2
++	  set QSPI1_IO2_PF7 1 ;#PF7
++	# set QSPI1_IO2_PG9 1 ;#PG9
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	# set QSPI1_IO3_PC5 1 ;#PC5
++	# set QSPI1_IO3_PD13 1 ;#PD13
++	  set QSPI1_IO3_PF6 1 ;#PF6
++	# set QSPI1_IO3_PG14 1 ;#PG14
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	# set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PD3 1 ;#PD3
++	  set QSPI1_SCK_PF10 1 ;#PF10
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	# set QSPI1_CS_PC11 1 ;#PC11
++	  set QSPI1_CS_PG6 1 ;#PG6
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PD11, PF8, PH2
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO0_PD11] && $QSPI1_IO0_PD11 } {	
++		mmw 0x40020C00 0x00800000 0
++		mmw 0x40020C08 0x00400000 0
++		mmw 0x40020C24 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF8] && $QSPI1_IO0_PF8 } {	
++		mmw 0x40021400 0x00020000 0
++		mmw 0x40021408 0x00010000 0
++		mmw 0x40021424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH2] && $QSPI1_IO0_PH2 } {	
++		mmw 0x40021C00 0x00000020 0
++		mmw 0x40021C08 0x00000010 0
++		mmw 0x40021C20 0x00000A00 0
++	}
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB10, PC10, PD12, PF9, PH3
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PD12] && $QSPI1_IO1_PD12 } {	
++		mmw 0x40020C00 0x02000000 0
++		mmw 0x40020C08 0x01000000 0
++		mmw 0x40020C24 0x00090000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PF9] && $QSPI1_IO1_PF9 } {	
++		mmw 0x40021400 0x00080000 0
++		mmw 0x40021408 0x00040000 0
++		mmw 0x40021424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH3] && $QSPI1_IO0_PH3 } {	
++		mmw 0x40021C00 0x00000080 0
++		mmw 0x40021C08 0x00000040 0
++		mmw 0x40021C20 0x0000A000 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA15, PC4, PC8, PE2, PF7, PG9
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000A0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x00000009 0
++	}
++	
++	if { [info exists QSPI1_IO2_PE2] && $QSPI1_IO2_PE2 } {	
++	
++		mmw 0x40021000 0x00000020 0
++		mmw 0x40021008 0x00000010 0
++		mmw 0x40021020 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_IO2_PF7] && $QSPI1_IO2_PF7 } {	
++	
++		mmw 0x40021400 0x00008000 0
++		mmw 0x40021408 0x00004000 0
++		mmw 0x40021420 0x90000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PG9] && $QSPI1_IO2_PG9 } {	
++		mmw 0x40021800 0x00080000 0
++		mmw 0x40021808 0x00040000 0
++		mmw 0x40021824 0x00000090 0
++	}
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5, PD13, PF6, PG14
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00a00000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PD13] && $QSPI1_IO3_PD13 } {	
++		mmw 0x40020C00 0x08000000 0
++		mmw 0x40020C08 0x04000000 0
++		mmw 0x40020C24 0x00900000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PF6] && $QSPI1_IO3_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x09000000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PG14] && $QSPI1_IO3_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x09000000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PD3, PF10
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_SCK_PD3] && $QSPI1_SCK_PD3 } {	
++		mmw 0x40020C00 0x00000080 0
++		mmw 0x40020C08 0x00000040 0
++		mmw 0x40020C20 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_SCK_PF10] && $QSPI1_SCK_PF10 } {	
++		mmw 0x40021400 0x00200000 0
++		mmw 0x40021408 0x00100000 0
++		mmw 0x40021424 0x00000900 0
++	}
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PB6, PB9, PB10, PC11, PG6
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x00009000 0
++	}
++	
++	if { [info exists QSPI1_CS_PG6] && $QSPI1_CS_PG6 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021820 0x0A000000 0
++	}
++}	
++
++proc qspi2_init { } {
++	global a
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI2 and QSPI2 Clock
++	
++###################Select QSPI2 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI2_IO0_PB0 1 ;#PB0
++	# set QSPI2_IO0_PE7 1 ;#PE7
++	 set QSPI2_IO0_PG14 1 ;#PG14
++	
++	# set QSPI2_IO1_PA15 1 ;#PA15
++	# set QSPI2_IO1_PB7 1 ;#PB7
++	# set QSPI2_IO1_PC3 1 ;#PC3
++	# set QSPI2_IO1_PE8 1 ;#PE8
++	  set QSPI2_IO1_PG12 1 ;#PG12
++	
++	# set QSPI2_IO2_PA5 1 ;#PA5
++	# set QSPI2_IO2_PE9  1 ;#PE9
++	# set QSPI2_IO2_PG10 1 ;#PG10
++	
++	# set QSPI2_IO3_PA3 1 ;#PA3
++	# set QSPI2_IO3_PE10  1 ;#PE10
++	# set QSPI2_IO3_PG11 1 ;#PG11
++	
++	
++	# set QSPI2_SCK_PB1 1 ;#PB1
++	# set QSPI2_SCK_PG13  1 ;#PG13
++	  
++	# set QSPI2_CS_PB8 1 ;#PB8
++	# set QSPI2_CS_PG8  1 ;#PG8
++	
++	
++##############################QSPI2_IO0###############################	
++	# QSPI_IO0: PB0, PE7, PG14
++	
++	if { [info exists QSPI2_IO0_PB0] && $QSPI2_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x00000009 0
++	}
++	
++	if { [info exists QSPI2_IO0_PE7] && $QSPI2_IO0_PE7 } {	
++		mmw 0x40021000 0x00008000 0
++		mmw 0x40021008 0x00004000 0
++		mmw 0x40021020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI2_IO0_PG14] && $QSPI2_IO0_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x05000000 0
++	}
++	
++##############################QSPI2_IO1###############################	
++	#QSPI_IO1: PA15, PB7, PC3, PE8, PG12
++	
++	if { [info exists QSPI2_IO1_PA15] && $QSPI2_IO1_PA15 } {	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PB7] && $QSPI2_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PC3] && $QSPI2_IO1_PC3 } {	
++		mmw 0x40020800 0x00000080 0
++		mmw 0x40020808 0x00000040 0
++		mmw 0x40020820 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PE8] && $QSPI2_IO1_PE8 } {	
++		mmw 0x40021000 0x00020000 0
++		mmw 0x40021000 0x00010000 0
++		mmw 0x40021024 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_IO1_PG12] && $QSPI2_IO1_PG12 } {	
++		mmw 0x40021800 0x02000000 0
++		mmw 0x40021808 0x01000000 0
++		mmw 0x40021824 0x00050000 0
++	}
++	
++##############################QSPI2_IO2###############################		
++	#QSPI_IO2: PA5, PE9, PG10
++	
++	if { [info exists QSPI2_IO2_PA5] && $QSPI2_IO2_PA5 } {	
++	
++		mmw 0x40020000 0x00000800 0
++		mmw 0x40020008 0x00000400 0
++		mmw 0x40020020 0x00900000 0
++	}
++	
++	if { [info exists QSPI2_IO2_PE9] && $QSPI2_IO2_PE9 } {	
++	
++		mmw 0x40021000 0x00080000 0
++		mmw 0x40021008 0x00040000 0
++		mmw 0x40021024 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_IO2_PG10] && $QSPI2_IO2_PG10 } {	
++		mmw 0x40021800 0x00200000 0
++		mmw 0x40021808 0x00100000 0
++		mmw 0x40021824 0x00000500 0
++	}
++	
++##############################QSPI2_IO3###############################		
++	#QSPI_IO3: PA3, PE10, PG11
++	
++	if { [info exists QSPI2_IO3_PA3] && $QSPI2_IO3_PA3 } {	
++	
++		mmw 0x40020000 0x00000080 0
++		mmw 0x40020008 0x00000040 0
++		mmw 0x40020020 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO3_PE10] && $QSPI2_IO3_PE10 } {	
++	
++		mmw 0x40021000 0x00200000 0
++		mmw 0x40021008 0x00100000 0
++		mmw 0x40021024 0x00000A00 0
++	}
++	
++	if { [info exists QSPI2_IO3_PG11] && $QSPI2_IO3_PG11 } {	
++		mmw 0x40021800 0x00800000 0
++		mmw 0x40021808 0x00400000 0
++		mmw 0x40021824 0x00005000 0
++	}
++	
++##############################QSPI2_SCK###############################		
++	#QSPI_SCK: PB1, PG13
++	
++	if { [info exists QSPI2_SCK_PB1] && $QSPI2_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_SCK_PG13] && $QSPI2_SCK_PG13 } {	
++		mmw 0x40021800 0x08000000 0
++		mmw 0x40021808 0x04000000 0
++		mmw 0x40021824 0x00500000 0
++	}
++
++	
++##############################QSPI2_CS###############################		
++	#QSPI_CS: PB8, PG8
++	
++	if { [info exists QSPI2_CS_PB8] && $QSPI2_CS_PB8 } {	
++		mmw 0x40020400 0x00020000 0
++		mmw 0x40020408 0x00010000 0
++		mmw 0x40020424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_CS_PG8] && $QSPI2_CS_PG8 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021824 0x00000005 0
++	}
++}	
+diff --git a/tcl/target/at32f435xx_qspi.cfg b/tcl/target/at32f435xx_qspi.cfg
+new file mode 100644
+index 000000000..f5dc2383b
+--- /dev/null
++++ b/tcl/target/at32f435xx_qspi.cfg
+@@ -0,0 +1,557 @@
++
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f435xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME
++set _FLASHNAME $_CHIPNAME.bank2
++flash bank $_FLASHNAME $_CHIPNAME 0x08080000 0 0 0 $_TARGETNAME
++# enable at32 qspi1
++set QSPI1 1
++
++# enable at32 qspi2
++# set QSPI2 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++if { [info exists QSPI2] && $QSPI2 } {
++	set _QSPINAME $_CHIPNAME.qspi2
++	flash bank $_QSPINAME at32qspi 0xB0000000 0 0 0 $_TARGETNAME 0xA0002000
++}
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++	qspi1_init
++#	qspi2_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	# set QSPI1_IO0_PC9 1 ;#PC9
++	# set QSPI1_IO0_PD11 1 ;#PD11
++	set QSPI1_IO0_PF8 1    ;#PF8
++	# set QSPI1_IO0_PH2 1 ;#PH2
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	# set QSPI1_IO1_PD12 1 ;#PD12
++	  set QSPI1_IO1_PF9 1 ;#PF9
++	# set QSPI1_IO1_PH3 1 ;#PH3
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	# set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PE2 1 ;#PE2
++	  set QSPI1_IO2_PF7 1 ;#PF7
++	# set QSPI1_IO2_PG9 1 ;#PG9
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	# set QSPI1_IO3_PC5 1 ;#PC5
++	# set QSPI1_IO3_PD13 1 ;#PD13
++	  set QSPI1_IO3_PF6 1 ;#PF6
++	# set QSPI1_IO3_PG14 1 ;#PG14
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	# set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PD3 1 ;#PD3
++	  set QSPI1_SCK_PF10 1 ;#PF10
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	# set QSPI1_CS_PC11 1 ;#PC11
++	  set QSPI1_CS_PG6 1 ;#PG6
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PD11, PF8, PH2
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO0_PD11] && $QSPI1_IO0_PD11 } {	
++		mmw 0x40020C00 0x00800000 0
++		mmw 0x40020C08 0x00400000 0
++		mmw 0x40020C24 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF8] && $QSPI1_IO0_PF8 } {	
++		mmw 0x40021400 0x00020000 0
++		mmw 0x40021408 0x00010000 0
++		mmw 0x40021424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH2] && $QSPI1_IO0_PH2 } {	
++		mmw 0x40021C00 0x00000020 0
++		mmw 0x40021C08 0x00000010 0
++		mmw 0x40021C20 0x00000A00 0
++	}
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB10, PC10, PD12, PF9, PH3
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PD12] && $QSPI1_IO1_PD12 } {	
++		mmw 0x40020C00 0x02000000 0
++		mmw 0x40020C08 0x01000000 0
++		mmw 0x40020C24 0x00090000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PF9] && $QSPI1_IO1_PF9 } {	
++		mmw 0x40021400 0x00080000 0
++		mmw 0x40021408 0x00040000 0
++		mmw 0x40021424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH3] && $QSPI1_IO0_PH3 } {	
++		mmw 0x40021C00 0x00000080 0
++		mmw 0x40021C08 0x00000040 0
++		mmw 0x40021C20 0x0000A000 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA15, PC4, PC8, PE2, PF7, PG9
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000A0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x00000009 0
++	}
++	
++	if { [info exists QSPI1_IO2_PE2] && $QSPI1_IO2_PE2 } {	
++	
++		mmw 0x40021000 0x00000020 0
++		mmw 0x40021008 0x00000010 0
++		mmw 0x40021020 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_IO2_PF7] && $QSPI1_IO2_PF7 } {	
++	
++		mmw 0x40021400 0x00008000 0
++		mmw 0x40021408 0x00004000 0
++		mmw 0x40021420 0x90000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PG9] && $QSPI1_IO2_PG9 } {	
++		mmw 0x40021800 0x00080000 0
++		mmw 0x40021808 0x00040000 0
++		mmw 0x40021824 0x00000090 0
++	}
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5, PD13, PF6, PG14
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00a00000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PD13] && $QSPI1_IO3_PD13 } {	
++		mmw 0x40020C00 0x08000000 0
++		mmw 0x40020C08 0x04000000 0
++		mmw 0x40020C24 0x00900000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PF6] && $QSPI1_IO3_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x09000000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PG14] && $QSPI1_IO3_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x09000000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PD3, PF10
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_SCK_PD3] && $QSPI1_SCK_PD3 } {	
++		mmw 0x40020C00 0x00000080 0
++		mmw 0x40020C08 0x00000040 0
++		mmw 0x40020C20 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_SCK_PF10] && $QSPI1_SCK_PF10 } {	
++		mmw 0x40021400 0x00200000 0
++		mmw 0x40021408 0x00100000 0
++		mmw 0x40021424 0x00000900 0
++	}
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PB6, PB9, PB10, PC11, PG6
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x00009000 0
++	}
++	
++	if { [info exists QSPI1_CS_PG6] && $QSPI1_CS_PG6 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021820 0x0A000000 0
++	}
++}	
++
++proc qspi2_init { } {
++	global a
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI2 and QSPI2 Clock
++	
++###################Select QSPI2 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI2_IO0_PB0 1 ;#PB0
++	# set QSPI2_IO0_PE7 1 ;#PE7
++	 set QSPI2_IO0_PG14 1 ;#PG14
++	
++	# set QSPI2_IO1_PA15 1 ;#PA15
++	# set QSPI2_IO1_PB7 1 ;#PB7
++	# set QSPI2_IO1_PC3 1 ;#PC3
++	# set QSPI2_IO1_PE8 1 ;#PE8
++	  set QSPI2_IO1_PG12 1 ;#PG12
++	
++	# set QSPI2_IO2_PA5 1 ;#PA5
++	# set QSPI2_IO2_PE9  1 ;#PE9
++	# set QSPI2_IO2_PG10 1 ;#PG10
++	
++	# set QSPI2_IO3_PA3 1 ;#PA3
++	# set QSPI2_IO3_PE10  1 ;#PE10
++	# set QSPI2_IO3_PG11 1 ;#PG11
++	
++	
++	# set QSPI2_SCK_PB1 1 ;#PB1
++	# set QSPI2_SCK_PG13  1 ;#PG13
++	  
++	# set QSPI2_CS_PB8 1 ;#PB8
++	# set QSPI2_CS_PG8  1 ;#PG8
++	
++	
++##############################QSPI2_IO0###############################	
++	# QSPI_IO0: PB0, PE7, PG14
++	
++	if { [info exists QSPI2_IO0_PB0] && $QSPI2_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x00000009 0
++	}
++	
++	if { [info exists QSPI2_IO0_PE7] && $QSPI2_IO0_PE7 } {	
++		mmw 0x40021000 0x00008000 0
++		mmw 0x40021008 0x00004000 0
++		mmw 0x40021020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI2_IO0_PG14] && $QSPI2_IO0_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x05000000 0
++	}
++	
++##############################QSPI2_IO1###############################	
++	#QSPI_IO1: PA15, PB7, PC3, PE8, PG12
++	
++	if { [info exists QSPI2_IO1_PA15] && $QSPI2_IO1_PA15 } {	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PB7] && $QSPI2_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PC3] && $QSPI2_IO1_PC3 } {	
++		mmw 0x40020800 0x00000080 0
++		mmw 0x40020808 0x00000040 0
++		mmw 0x40020820 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PE8] && $QSPI2_IO1_PE8 } {	
++		mmw 0x40021000 0x00020000 0
++		mmw 0x40021000 0x00010000 0
++		mmw 0x40021024 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_IO1_PG12] && $QSPI2_IO1_PG12 } {	
++		mmw 0x40021800 0x02000000 0
++		mmw 0x40021808 0x01000000 0
++		mmw 0x40021824 0x00050000 0
++	}
++	
++##############################QSPI2_IO2###############################		
++	#QSPI_IO2: PA5, PE9, PG10
++	
++	if { [info exists QSPI2_IO2_PA5] && $QSPI2_IO2_PA5 } {	
++	
++		mmw 0x40020000 0x00000800 0
++		mmw 0x40020008 0x00000400 0
++		mmw 0x40020020 0x00900000 0
++	}
++	
++	if { [info exists QSPI2_IO2_PE9] && $QSPI2_IO2_PE9 } {	
++	
++		mmw 0x40021000 0x00080000 0
++		mmw 0x40021008 0x00040000 0
++		mmw 0x40021024 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_IO2_PG10] && $QSPI2_IO2_PG10 } {	
++		mmw 0x40021800 0x00200000 0
++		mmw 0x40021808 0x00100000 0
++		mmw 0x40021824 0x00000500 0
++	}
++	
++##############################QSPI2_IO3###############################		
++	#QSPI_IO3: PA3, PE10, PG11
++	
++	if { [info exists QSPI2_IO3_PA3] && $QSPI2_IO3_PA3 } {	
++	
++		mmw 0x40020000 0x00000080 0
++		mmw 0x40020008 0x00000040 0
++		mmw 0x40020020 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO3_PE10] && $QSPI2_IO3_PE10 } {	
++	
++		mmw 0x40021000 0x00200000 0
++		mmw 0x40021008 0x00100000 0
++		mmw 0x40021024 0x00000A00 0
++	}
++	
++	if { [info exists QSPI2_IO3_PG11] && $QSPI2_IO3_PG11 } {	
++		mmw 0x40021800 0x00800000 0
++		mmw 0x40021808 0x00400000 0
++		mmw 0x40021824 0x00005000 0
++	}
++	
++##############################QSPI2_SCK###############################		
++	#QSPI_SCK: PB1, PG13
++	
++	if { [info exists QSPI2_SCK_PB1] && $QSPI2_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_SCK_PG13] && $QSPI2_SCK_PG13 } {	
++		mmw 0x40021800 0x08000000 0
++		mmw 0x40021808 0x04000000 0
++		mmw 0x40021824 0x00500000 0
++	}
++
++	
++##############################QSPI2_CS###############################		
++	#QSPI_CS: PB8, PG8
++	
++	if { [info exists QSPI2_CS_PB8] && $QSPI2_CS_PB8 } {	
++		mmw 0x40020400 0x00020000 0
++		mmw 0x40020408 0x00010000 0
++		mmw 0x40020424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_CS_PG8] && $QSPI2_CS_PG8 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021824 0x00000005 0
++	}
++}	
+diff --git a/tcl/target/at32f437xG_qspi.cfg b/tcl/target/at32f437xG_qspi.cfg
+new file mode 100644
+index 000000000..52211c7f0
+--- /dev/null
++++ b/tcl/target/at32f437xG_qspi.cfg
+@@ -0,0 +1,559 @@
++
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f437xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME
++set _FLASHNAME $_CHIPNAME.bank2
++flash bank $_FLASHNAME $_CHIPNAME 0x08080000 0 0 0 $_TARGETNAME
++
++# enable at32 qspi1
++set QSPI1 1
++
++# enable at32 qspi2
++# set QSPI2 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++if { [info exists QSPI2] && $QSPI2 } {
++	set _QSPINAME $_CHIPNAME.qspi2
++	flash bank $_QSPINAME at32qspi 0xB0000000 0 0 0 $_TARGETNAME 0xA0002000
++}
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++	qspi1_init
++#	qspi2_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	# set QSPI1_IO0_PC9 1 ;#PC9
++	# set QSPI1_IO0_PD11 1 ;#PD11
++	set QSPI1_IO0_PF8 1    ;#PF8
++	# set QSPI1_IO0_PH2 1 ;#PH2
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	# set QSPI1_IO1_PD12 1 ;#PD12
++	  set QSPI1_IO1_PF9 1 ;#PF9
++	# set QSPI1_IO1_PH3 1 ;#PH3
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	# set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PE2 1 ;#PE2
++	  set QSPI1_IO2_PF7 1 ;#PF7
++	# set QSPI1_IO2_PG9 1 ;#PG9
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	# set QSPI1_IO3_PC5 1 ;#PC5
++	# set QSPI1_IO3_PD13 1 ;#PD13
++	  set QSPI1_IO3_PF6 1 ;#PF6
++	# set QSPI1_IO3_PG14 1 ;#PG14
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	# set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PD3 1 ;#PD3
++	  set QSPI1_SCK_PF10 1 ;#PF10
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	# set QSPI1_CS_PC11 1 ;#PC11
++	  set QSPI1_CS_PG6 1 ;#PG6
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PD11, PF8, PH2
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO0_PD11] && $QSPI1_IO0_PD11 } {	
++		mmw 0x40020C00 0x00800000 0
++		mmw 0x40020C08 0x00400000 0
++		mmw 0x40020C24 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF8] && $QSPI1_IO0_PF8 } {	
++		mmw 0x40021400 0x00020000 0
++		mmw 0x40021408 0x00010000 0
++		mmw 0x40021424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH2] && $QSPI1_IO0_PH2 } {	
++		mmw 0x40021C00 0x00000020 0
++		mmw 0x40021C08 0x00000010 0
++		mmw 0x40021C20 0x00000A00 0
++	}
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB10, PC10, PD12, PF9, PH3
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PD12] && $QSPI1_IO1_PD12 } {	
++		mmw 0x40020C00 0x02000000 0
++		mmw 0x40020C08 0x01000000 0
++		mmw 0x40020C24 0x00090000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PF9] && $QSPI1_IO1_PF9 } {	
++		mmw 0x40021400 0x00080000 0
++		mmw 0x40021408 0x00040000 0
++		mmw 0x40021424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH3] && $QSPI1_IO0_PH3 } {	
++		mmw 0x40021C00 0x00000080 0
++		mmw 0x40021C08 0x00000040 0
++		mmw 0x40021C20 0x0000A000 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA15, PC4, PC8, PE2, PF7, PG9
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000A0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x00000009 0
++	}
++	
++	if { [info exists QSPI1_IO2_PE2] && $QSPI1_IO2_PE2 } {	
++	
++		mmw 0x40021000 0x00000020 0
++		mmw 0x40021008 0x00000010 0
++		mmw 0x40021020 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_IO2_PF7] && $QSPI1_IO2_PF7 } {	
++	
++		mmw 0x40021400 0x00008000 0
++		mmw 0x40021408 0x00004000 0
++		mmw 0x40021420 0x90000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PG9] && $QSPI1_IO2_PG9 } {	
++		mmw 0x40021800 0x00080000 0
++		mmw 0x40021808 0x00040000 0
++		mmw 0x40021824 0x00000090 0
++	}
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5, PD13, PF6, PG14
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00a00000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PD13] && $QSPI1_IO3_PD13 } {	
++		mmw 0x40020C00 0x08000000 0
++		mmw 0x40020C08 0x04000000 0
++		mmw 0x40020C24 0x00900000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PF6] && $QSPI1_IO3_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x09000000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PG14] && $QSPI1_IO3_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x09000000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PD3, PF10
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_SCK_PD3] && $QSPI1_SCK_PD3 } {	
++		mmw 0x40020C00 0x00000080 0
++		mmw 0x40020C08 0x00000040 0
++		mmw 0x40020C20 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_SCK_PF10] && $QSPI1_SCK_PF10 } {	
++		mmw 0x40021400 0x00200000 0
++		mmw 0x40021408 0x00100000 0
++		mmw 0x40021424 0x00000900 0
++	}
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PB6, PB9, PB10, PC11, PG6
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x00009000 0
++	}
++	
++	if { [info exists QSPI1_CS_PG6] && $QSPI1_CS_PG6 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021820 0x0A000000 0
++	}
++}	
++
++proc qspi2_init { } {
++	global a
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI2 and QSPI2 Clock
++	
++###################Select QSPI2 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI2_IO0_PB0 1 ;#PB0
++	# set QSPI2_IO0_PE7 1 ;#PE7
++	 set QSPI2_IO0_PG14 1 ;#PG14
++	
++	# set QSPI2_IO1_PA15 1 ;#PA15
++	# set QSPI2_IO1_PB7 1 ;#PB7
++	# set QSPI2_IO1_PC3 1 ;#PC3
++	# set QSPI2_IO1_PE8 1 ;#PE8
++	  set QSPI2_IO1_PG12 1 ;#PG12
++	
++	# set QSPI2_IO2_PA5 1 ;#PA5
++	# set QSPI2_IO2_PE9  1 ;#PE9
++	# set QSPI2_IO2_PG10 1 ;#PG10
++	
++	# set QSPI2_IO3_PA3 1 ;#PA3
++	# set QSPI2_IO3_PE10  1 ;#PE10
++	# set QSPI2_IO3_PG11 1 ;#PG11
++	
++	
++	# set QSPI2_SCK_PB1 1 ;#PB1
++	# set QSPI2_SCK_PG13  1 ;#PG13
++	  
++	# set QSPI2_CS_PB8 1 ;#PB8
++	# set QSPI2_CS_PG8  1 ;#PG8
++	
++	
++##############################QSPI2_IO0###############################	
++	# QSPI_IO0: PB0, PE7, PG14
++	
++	if { [info exists QSPI2_IO0_PB0] && $QSPI2_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x00000009 0
++	}
++	
++	if { [info exists QSPI2_IO0_PE7] && $QSPI2_IO0_PE7 } {	
++		mmw 0x40021000 0x00008000 0
++		mmw 0x40021008 0x00004000 0
++		mmw 0x40021020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI2_IO0_PG14] && $QSPI2_IO0_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x05000000 0
++	}
++	
++##############################QSPI2_IO1###############################	
++	#QSPI_IO1: PA15, PB7, PC3, PE8, PG12
++	
++	if { [info exists QSPI2_IO1_PA15] && $QSPI2_IO1_PA15 } {	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PB7] && $QSPI2_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PC3] && $QSPI2_IO1_PC3 } {	
++		mmw 0x40020800 0x00000080 0
++		mmw 0x40020808 0x00000040 0
++		mmw 0x40020820 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PE8] && $QSPI2_IO1_PE8 } {	
++		mmw 0x40021000 0x00020000 0
++		mmw 0x40021000 0x00010000 0
++		mmw 0x40021024 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_IO1_PG12] && $QSPI2_IO1_PG12 } {	
++		mmw 0x40021800 0x02000000 0
++		mmw 0x40021808 0x01000000 0
++		mmw 0x40021824 0x00050000 0
++	}
++	
++##############################QSPI2_IO2###############################		
++	#QSPI_IO2: PA5, PE9, PG10
++	
++	if { [info exists QSPI2_IO2_PA5] && $QSPI2_IO2_PA5 } {	
++	
++		mmw 0x40020000 0x00000800 0
++		mmw 0x40020008 0x00000400 0
++		mmw 0x40020020 0x00900000 0
++	}
++	
++	if { [info exists QSPI2_IO2_PE9] && $QSPI2_IO2_PE9 } {	
++	
++		mmw 0x40021000 0x00080000 0
++		mmw 0x40021008 0x00040000 0
++		mmw 0x40021024 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_IO2_PG10] && $QSPI2_IO2_PG10 } {	
++		mmw 0x40021800 0x00200000 0
++		mmw 0x40021808 0x00100000 0
++		mmw 0x40021824 0x00000500 0
++	}
++	
++##############################QSPI2_IO3###############################		
++	#QSPI_IO3: PA3, PE10, PG11
++	
++	if { [info exists QSPI2_IO3_PA3] && $QSPI2_IO3_PA3 } {	
++	
++		mmw 0x40020000 0x00000080 0
++		mmw 0x40020008 0x00000040 0
++		mmw 0x40020020 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO3_PE10] && $QSPI2_IO3_PE10 } {	
++	
++		mmw 0x40021000 0x00200000 0
++		mmw 0x40021008 0x00100000 0
++		mmw 0x40021024 0x00000A00 0
++	}
++	
++	if { [info exists QSPI2_IO3_PG11] && $QSPI2_IO3_PG11 } {	
++		mmw 0x40021800 0x00800000 0
++		mmw 0x40021808 0x00400000 0
++		mmw 0x40021824 0x00005000 0
++	}
++	
++##############################QSPI2_SCK###############################		
++	#QSPI_SCK: PB1, PG13
++	
++	if { [info exists QSPI2_SCK_PB1] && $QSPI2_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_SCK_PG13] && $QSPI2_SCK_PG13 } {	
++		mmw 0x40021800 0x08000000 0
++		mmw 0x40021808 0x04000000 0
++		mmw 0x40021824 0x00500000 0
++	}
++
++	
++##############################QSPI2_CS###############################		
++	#QSPI_CS: PB8, PG8
++	
++	if { [info exists QSPI2_CS_PB8] && $QSPI2_CS_PB8 } {	
++		mmw 0x40020400 0x00020000 0
++		mmw 0x40020408 0x00010000 0
++		mmw 0x40020424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_CS_PG8] && $QSPI2_CS_PG8 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021824 0x00000005 0
++	}
++}	
+diff --git a/tcl/target/at32f437xM_qspi.cfg b/tcl/target/at32f437xM_qspi.cfg
+new file mode 100644
+index 000000000..e8c3ae807
+--- /dev/null
++++ b/tcl/target/at32f437xM_qspi.cfg
+@@ -0,0 +1,557 @@
++
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f437xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME
++set _FLASHNAME $_CHIPNAME.bank2
++flash bank $_FLASHNAME $_CHIPNAME 0x08200000 0 0 0 $_TARGETNAME
++# enable at32 qspi1
++set QSPI1 1
++
++# enable at32 qspi2
++# set QSPI2 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++if { [info exists QSPI2] && $QSPI2 } {
++	set _QSPINAME $_CHIPNAME.qspi2
++	flash bank $_QSPINAME at32qspi 0xB0000000 0 0 0 $_TARGETNAME 0xA0002000
++}
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++	qspi1_init
++#	qspi2_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	# set QSPI1_IO0_PC9 1 ;#PC9
++	# set QSPI1_IO0_PD11 1 ;#PD11
++	set QSPI1_IO0_PF8 1    ;#PF8
++	# set QSPI1_IO0_PH2 1 ;#PH2
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	# set QSPI1_IO1_PD12 1 ;#PD12
++	  set QSPI1_IO1_PF9 1 ;#PF9
++	# set QSPI1_IO1_PH3 1 ;#PH3
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	# set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PE2 1 ;#PE2
++	  set QSPI1_IO2_PF7 1 ;#PF7
++	# set QSPI1_IO2_PG9 1 ;#PG9
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	# set QSPI1_IO3_PC5 1 ;#PC5
++	# set QSPI1_IO3_PD13 1 ;#PD13
++	  set QSPI1_IO3_PF6 1 ;#PF6
++	# set QSPI1_IO3_PG14 1 ;#PG14
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	# set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PD3 1 ;#PD3
++	  set QSPI1_SCK_PF10 1 ;#PF10
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	# set QSPI1_CS_PC11 1 ;#PC11
++	  set QSPI1_CS_PG6 1 ;#PG6
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PD11, PF8, PH2
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO0_PD11] && $QSPI1_IO0_PD11 } {	
++		mmw 0x40020C00 0x00800000 0
++		mmw 0x40020C08 0x00400000 0
++		mmw 0x40020C24 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF8] && $QSPI1_IO0_PF8 } {	
++		mmw 0x40021400 0x00020000 0
++		mmw 0x40021408 0x00010000 0
++		mmw 0x40021424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH2] && $QSPI1_IO0_PH2 } {	
++		mmw 0x40021C00 0x00000020 0
++		mmw 0x40021C08 0x00000010 0
++		mmw 0x40021C20 0x00000A00 0
++	}
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB10, PC10, PD12, PF9, PH3
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PD12] && $QSPI1_IO1_PD12 } {	
++		mmw 0x40020C00 0x02000000 0
++		mmw 0x40020C08 0x01000000 0
++		mmw 0x40020C24 0x00090000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PF9] && $QSPI1_IO1_PF9 } {	
++		mmw 0x40021400 0x00080000 0
++		mmw 0x40021408 0x00040000 0
++		mmw 0x40021424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH3] && $QSPI1_IO0_PH3 } {	
++		mmw 0x40021C00 0x00000080 0
++		mmw 0x40021C08 0x00000040 0
++		mmw 0x40021C20 0x0000A000 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA15, PC4, PC8, PE2, PF7, PG9
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000A0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x00000009 0
++	}
++	
++	if { [info exists QSPI1_IO2_PE2] && $QSPI1_IO2_PE2 } {	
++	
++		mmw 0x40021000 0x00000020 0
++		mmw 0x40021008 0x00000010 0
++		mmw 0x40021020 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_IO2_PF7] && $QSPI1_IO2_PF7 } {	
++	
++		mmw 0x40021400 0x00008000 0
++		mmw 0x40021408 0x00004000 0
++		mmw 0x40021420 0x90000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PG9] && $QSPI1_IO2_PG9 } {	
++		mmw 0x40021800 0x00080000 0
++		mmw 0x40021808 0x00040000 0
++		mmw 0x40021824 0x00000090 0
++	}
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5, PD13, PF6, PG14
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00a00000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PD13] && $QSPI1_IO3_PD13 } {	
++		mmw 0x40020C00 0x08000000 0
++		mmw 0x40020C08 0x04000000 0
++		mmw 0x40020C24 0x00900000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PF6] && $QSPI1_IO3_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x09000000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PG14] && $QSPI1_IO3_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x09000000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PD3, PF10
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_SCK_PD3] && $QSPI1_SCK_PD3 } {	
++		mmw 0x40020C00 0x00000080 0
++		mmw 0x40020C08 0x00000040 0
++		mmw 0x40020C20 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_SCK_PF10] && $QSPI1_SCK_PF10 } {	
++		mmw 0x40021400 0x00200000 0
++		mmw 0x40021408 0x00100000 0
++		mmw 0x40021424 0x00000900 0
++	}
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PB6, PB9, PB10, PC11, PG6
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x00009000 0
++	}
++	
++	if { [info exists QSPI1_CS_PG6] && $QSPI1_CS_PG6 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021820 0x0A000000 0
++	}
++}	
++
++proc qspi2_init { } {
++	global a
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI2 and QSPI2 Clock
++	
++###################Select QSPI2 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI2_IO0_PB0 1 ;#PB0
++	# set QSPI2_IO0_PE7 1 ;#PE7
++	 set QSPI2_IO0_PG14 1 ;#PG14
++	
++	# set QSPI2_IO1_PA15 1 ;#PA15
++	# set QSPI2_IO1_PB7 1 ;#PB7
++	# set QSPI2_IO1_PC3 1 ;#PC3
++	# set QSPI2_IO1_PE8 1 ;#PE8
++	  set QSPI2_IO1_PG12 1 ;#PG12
++	
++	# set QSPI2_IO2_PA5 1 ;#PA5
++	# set QSPI2_IO2_PE9  1 ;#PE9
++	# set QSPI2_IO2_PG10 1 ;#PG10
++	
++	# set QSPI2_IO3_PA3 1 ;#PA3
++	# set QSPI2_IO3_PE10  1 ;#PE10
++	# set QSPI2_IO3_PG11 1 ;#PG11
++	
++	
++	# set QSPI2_SCK_PB1 1 ;#PB1
++	# set QSPI2_SCK_PG13  1 ;#PG13
++	  
++	# set QSPI2_CS_PB8 1 ;#PB8
++	# set QSPI2_CS_PG8  1 ;#PG8
++	
++	
++##############################QSPI2_IO0###############################	
++	# QSPI_IO0: PB0, PE7, PG14
++	
++	if { [info exists QSPI2_IO0_PB0] && $QSPI2_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x00000009 0
++	}
++	
++	if { [info exists QSPI2_IO0_PE7] && $QSPI2_IO0_PE7 } {	
++		mmw 0x40021000 0x00008000 0
++		mmw 0x40021008 0x00004000 0
++		mmw 0x40021020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI2_IO0_PG14] && $QSPI2_IO0_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x05000000 0
++	}
++	
++##############################QSPI2_IO1###############################	
++	#QSPI_IO1: PA15, PB7, PC3, PE8, PG12
++	
++	if { [info exists QSPI2_IO1_PA15] && $QSPI2_IO1_PA15 } {	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PB7] && $QSPI2_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PC3] && $QSPI2_IO1_PC3 } {	
++		mmw 0x40020800 0x00000080 0
++		mmw 0x40020808 0x00000040 0
++		mmw 0x40020820 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PE8] && $QSPI2_IO1_PE8 } {	
++		mmw 0x40021000 0x00020000 0
++		mmw 0x40021000 0x00010000 0
++		mmw 0x40021024 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_IO1_PG12] && $QSPI2_IO1_PG12 } {	
++		mmw 0x40021800 0x02000000 0
++		mmw 0x40021808 0x01000000 0
++		mmw 0x40021824 0x00050000 0
++	}
++	
++##############################QSPI2_IO2###############################		
++	#QSPI_IO2: PA5, PE9, PG10
++	
++	if { [info exists QSPI2_IO2_PA5] && $QSPI2_IO2_PA5 } {	
++	
++		mmw 0x40020000 0x00000800 0
++		mmw 0x40020008 0x00000400 0
++		mmw 0x40020020 0x00900000 0
++	}
++	
++	if { [info exists QSPI2_IO2_PE9] && $QSPI2_IO2_PE9 } {	
++	
++		mmw 0x40021000 0x00080000 0
++		mmw 0x40021008 0x00040000 0
++		mmw 0x40021024 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_IO2_PG10] && $QSPI2_IO2_PG10 } {	
++		mmw 0x40021800 0x00200000 0
++		mmw 0x40021808 0x00100000 0
++		mmw 0x40021824 0x00000500 0
++	}
++	
++##############################QSPI2_IO3###############################		
++	#QSPI_IO3: PA3, PE10, PG11
++	
++	if { [info exists QSPI2_IO3_PA3] && $QSPI2_IO3_PA3 } {	
++	
++		mmw 0x40020000 0x00000080 0
++		mmw 0x40020008 0x00000040 0
++		mmw 0x40020020 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO3_PE10] && $QSPI2_IO3_PE10 } {	
++	
++		mmw 0x40021000 0x00200000 0
++		mmw 0x40021008 0x00100000 0
++		mmw 0x40021024 0x00000A00 0
++	}
++	
++	if { [info exists QSPI2_IO3_PG11] && $QSPI2_IO3_PG11 } {	
++		mmw 0x40021800 0x00800000 0
++		mmw 0x40021808 0x00400000 0
++		mmw 0x40021824 0x00005000 0
++	}
++	
++##############################QSPI2_SCK###############################		
++	#QSPI_SCK: PB1, PG13
++	
++	if { [info exists QSPI2_SCK_PB1] && $QSPI2_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_SCK_PG13] && $QSPI2_SCK_PG13 } {	
++		mmw 0x40021800 0x08000000 0
++		mmw 0x40021808 0x04000000 0
++		mmw 0x40021824 0x00500000 0
++	}
++
++	
++##############################QSPI2_CS###############################		
++	#QSPI_CS: PB8, PG8
++	
++	if { [info exists QSPI2_CS_PB8] && $QSPI2_CS_PB8 } {	
++		mmw 0x40020400 0x00020000 0
++		mmw 0x40020408 0x00010000 0
++		mmw 0x40020424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_CS_PG8] && $QSPI2_CS_PG8 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021824 0x00000005 0
++	}
++}	
+diff --git a/tcl/target/at32f437xx_qspi.cfg b/tcl/target/at32f437xx_qspi.cfg
+new file mode 100644
+index 000000000..c50ef7907
+--- /dev/null
++++ b/tcl/target/at32f437xx_qspi.cfg
+@@ -0,0 +1,557 @@
++
++source [find target/swj-dp.tcl]
++source [find mem_helper.tcl]
++
++# increase working area
++set WORKAREASIZE 0x1000
++
++if { [info exists CHIPNAME] } {
++   set _CHIPNAME $CHIPNAME
++} else {
++   set _CHIPNAME at32f437xx
++}
++
++if { [info exists ENDIAN] } {
++   set _ENDIAN $ENDIAN
++} else {
++   set _ENDIAN little
++}
++
++# Work-area is a space in RAM used for flash programming
++# By default use 64kB
++if { [info exists WORKAREASIZE] } {
++   set _WORKAREASIZE $WORKAREASIZE
++} else {
++   set _WORKAREASIZE 0x1000
++}
++
++#jtag scan chain
++if { [info exists CPUTAPID] } {
++   set _CPUTAPID $CPUTAPID
++} else {
++   if { [using_jtag] } {
++      set _CPUTAPID 0x4ba00477
++   } else {
++      set _CPUTAPID 0x2ba01477
++   }
++}
++
++# Allow overriding the Flash bank size
++if { [info exists FLASH_SIZE] } {
++    set _FLASH_SIZE $FLASH_SIZE
++} else {
++    # autodetect size
++    set _FLASH_SIZE 0
++}
++
++
++swj_newdap $_CHIPNAME cpu -irlen 4 -ircapture 0x1 -irmask 0xf -expected-id $_CPUTAPID
++dap create $_CHIPNAME.dap -chain-position $_CHIPNAME.cpu
++
++set _TARGETNAME $_CHIPNAME.cpu
++target create $_TARGETNAME cortex_m -endian $_ENDIAN -dap $_CHIPNAME.dap
++
++$_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE -work-area-backup 0
++
++set _FLASHNAME $_CHIPNAME.bank1
++flash bank $_FLASHNAME $_CHIPNAME 0x08000000 0 0 0 $_TARGETNAME
++set _FLASHNAME $_CHIPNAME.bank2
++flash bank $_FLASHNAME $_CHIPNAME 0x08080000 0 0 0 $_TARGETNAME
++# enable at32 qspi1
++set QSPI1 1
++
++# enable at32 qspi2
++# set QSPI2 1
++
++if { [info exists QSPI1] && $QSPI1 } {
++	set _QSPINAME $_CHIPNAME.qspi1
++	flash bank $_QSPINAME at32qspi 0x90000000 0 0 0 $_TARGETNAME 0xA0001000
++}
++
++if { [info exists QSPI2] && $QSPI2 } {
++	set _QSPINAME $_CHIPNAME.qspi2
++	flash bank $_QSPINAME at32qspi 0xB0000000 0 0 0 $_TARGETNAME 0xA0002000
++}
++
++
++# JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
++adapter speed 5000
++
++adapter srst delay 100
++
++reset_config srst_nogate
++
++if {![using_hla]} {
++    # if srst is not fitted use SYSRESETREQ to
++    # perform a soft reset
++     cortex_m reset_config sysresetreq
++}
++
++$_TARGETNAME configure -event examine-end {
++	# DBGMCU_CR |= DBG_WWDG_STOP | DBG_IWDG_STOP |
++	#              DBG_STANDBY | DBG_STOP | DBG_SLEEP
++	mmw 0xE0042004 0x00000307 0
++}
++
++$_TARGETNAME configure -event trace-config {
++	# Set TRACE_IOEN; TRACE_MODE is set to async; when using sync
++	# change this value accordingly to configure trace pins
++	# assignment
++	mmw 0xE0042004 0x00000020 0
++}
++
++$_TARGETNAME configure -event reset-init {
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	sleep 1
++	qspi1_init
++#	qspi2_init
++}
++
++$_TARGETNAME configure -event halted { qspi1_init }
++
++# QSPI1 initialization GPIOA 0x40020000, GPIOB 0x40020400, GPIOC 0x40020800 GPIOD 0x40020C00, GPIOE 0x40021000, GPIOF 0x40021400, GPIOG 0x40021800 GPIOH 0x40021C00
++proc qspi1_init { } {
++	global a
++	mww 0x400238A0 0x000F5000
++	mww 0x40023C60 0x00000000
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI1 and QSPI2 Clock
++	
++###################Select QSPI1 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI1_IO0_PA6 1 ;#PA6
++	# set QSPI1_IO0_PB0 1 ;#PB0
++	# set QSPI1_IO0_PB11 1 ;#PB11
++	# set QSPI1_IO0_PC9 1 ;#PC9
++	# set QSPI1_IO0_PD11 1 ;#PD11
++	set QSPI1_IO0_PF8 1    ;#PF8
++	# set QSPI1_IO0_PH2 1 ;#PH2
++	
++	# set QSPI1_IO1_PA7 1 ;#PA7
++	# set QSPI1_IO1_PB10 1 ;#PB10
++	# set QSPI1_IO1_PC10 1 ;#PC10
++	# set QSPI1_IO1_PD12 1 ;#PD12
++	  set QSPI1_IO1_PF9 1 ;#PF9
++	# set QSPI1_IO1_PH3 1 ;#PH3
++	
++	# set QSPI1_IO2_PA15 1 ;#PA15
++	# set QSPI1_IO2_PC4  1 ;#PC4
++	# set QSPI1_IO2_PC8 1 ;#PC8
++	# set QSPI1_IO2_PE2 1 ;#PE2
++	  set QSPI1_IO2_PF7 1 ;#PF7
++	# set QSPI1_IO2_PG9 1 ;#PG9
++	
++	# set QSPI1_IO3_PA1 1 ;#PA1
++	# set QSPI1_IO3_PB3  1 ;#PB3
++	# set QSPI1_IO3_PC5 1 ;#PC5
++	# set QSPI1_IO3_PD13 1 ;#PD13
++	  set QSPI1_IO3_PF6 1 ;#PF6
++	# set QSPI1_IO3_PG14 1 ;#PG14
++	
++	# set QSPI1_SCK_PB1 1 ;#PB1
++	# set QSPI1_SCK_PB2  1 ;#PB2
++	# set QSPI1_SCK_PD3 1 ;#PD3
++	  set QSPI1_SCK_PF10 1 ;#PF10
++	  
++	# set QSPI1_CS_PB6 1 ;#PB6
++	# set QSPI1_CS_PB9  1 ;#PB9
++	# set QSPI1_CS_PB10 1 ;#PB10
++	# set QSPI1_CS_PC11 1 ;#PC11
++	  set QSPI1_CS_PG6 1 ;#PG6
++	
++	
++##############################QSPI1_IO0###############################	
++	# QSPI_IO0: PA6, PB0, PB11, PC9, PD11, PF8, PH2
++	if { [info exists QSPI1_IO0_PA6] && $QSPI1_IO0_PA6 } {	
++		mmw 0x40020000 0x00002000 0
++		mmw 0x40020008 0x00001000 0
++		mmw 0x40020020 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB0] && $QSPI1_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PB11] && $QSPI1_IO0_PB11 } {	
++		mmw 0x40020400 0x00800000 0
++		mmw 0x40020408 0x00400000 0
++		mmw 0x40020424 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PC9] && $QSPI1_IO0_PC9 } {	
++		mmw 0x40020800 0x00080000 0
++		mmw 0x40020808 0x00040000 0
++		mmw 0x40020824 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO0_PD11] && $QSPI1_IO0_PD11 } {	
++		mmw 0x40020C00 0x00800000 0
++		mmw 0x40020C08 0x00400000 0
++		mmw 0x40020C24 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO0_PF8] && $QSPI1_IO0_PF8 } {	
++		mmw 0x40021400 0x00020000 0
++		mmw 0x40021408 0x00010000 0
++		mmw 0x40021424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH2] && $QSPI1_IO0_PH2 } {	
++		mmw 0x40021C00 0x00000020 0
++		mmw 0x40021C08 0x00000010 0
++		mmw 0x40021C20 0x00000A00 0
++	}
++	
++##############################QSPI1_IO1###############################	
++	#QSPI_IO1: PA7, PB10, PC10, PD12, PF9, PH3
++	
++	if { [info exists QSPI1_IO1_PA7] && $QSPI1_IO1_PA7 } {	
++		mmw 0x40020000 0x00008000 0
++		mmw 0x40020008 0x00004000 0
++		mmw 0x40020020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PB10] && $QSPI1_IO1_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PC10] && $QSPI1_IO1_PC10 } {	
++		mmw 0x40020800 0x00200000 0
++		mmw 0x40020808 0x00100000 0
++		mmw 0x40020824 0x00000A00 0
++	}
++	
++	if { [info exists QSPI1_IO1_PD12] && $QSPI1_IO1_PD12 } {	
++		mmw 0x40020C00 0x02000000 0
++		mmw 0x40020C08 0x01000000 0
++		mmw 0x40020C24 0x00090000 0
++	}
++	
++	if { [info exists QSPI1_IO1_PF9] && $QSPI1_IO1_PF9 } {	
++		mmw 0x40021400 0x00080000 0
++		mmw 0x40021408 0x00040000 0
++		mmw 0x40021424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_IO0_PH3] && $QSPI1_IO0_PH3 } {	
++		mmw 0x40021C00 0x00000080 0
++		mmw 0x40021C08 0x00000040 0
++		mmw 0x40021C20 0x0000A000 0
++	}
++	
++##############################QSPI1_IO2###############################		
++	#QSPI_IO2: PA15, PC4, PC8, PE2, PF7, PG9
++	
++	if { [info exists QSPI1_IO2_PA15] && $QSPI1_IO2_PA15 } {	
++	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0xA0000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC4] && $QSPI1_IO2_PC4 } {	
++	
++		mmw 0x40020800 0x00000200 0
++		mmw 0x40020808 0x00000100 0
++		mmw 0x40020820 0x000A0000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PC8] && $QSPI1_IO2_PC8 } {	
++	
++		mmw 0x40020800 0x00020000 0
++		mmw 0x40020808 0x00010000 0
++		mmw 0x40020824 0x00000009 0
++	}
++	
++	if { [info exists QSPI1_IO2_PE2] && $QSPI1_IO2_PE2 } {	
++	
++		mmw 0x40021000 0x00000020 0
++		mmw 0x40021008 0x00000010 0
++		mmw 0x40021020 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_IO2_PF7] && $QSPI1_IO2_PF7 } {	
++	
++		mmw 0x40021400 0x00008000 0
++		mmw 0x40021408 0x00004000 0
++		mmw 0x40021420 0x90000000 0
++	}
++	
++	if { [info exists QSPI1_IO2_PG9] && $QSPI1_IO2_PG9 } {	
++		mmw 0x40021800 0x00080000 0
++		mmw 0x40021808 0x00040000 0
++		mmw 0x40021824 0x00000090 0
++	}
++	
++##############################QSPI1_IO3###############################		
++	#QSPI_IO3: PA1, PB3, PC5, PD13, PF6, PG14
++	
++	if { [info exists QSPI1_IO3_PA1] && $QSPI1_IO3_PA1 } {	
++		mmw 0x40020000 0x00000008 0
++		mmw 0x40020008 0x00000004 0
++		mmw 0x40020020 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_IO3_PB3] && $QSPI1_IO3_PB3 } {	
++		mmw 0x40020400 0x00000080 0
++		mmw 0x40020408 0x00000040 0
++		mmw 0x40020420 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PC5] && $QSPI1_IO3_PC5 } {	
++	
++		mmw 0x40020800 0x00000800 0
++		mmw 0x40020808 0x00000400 0
++		mmw 0x40020820 0x00a00000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PD13] && $QSPI1_IO3_PD13 } {	
++		mmw 0x40020C00 0x08000000 0
++		mmw 0x40020C08 0x04000000 0
++		mmw 0x40020C24 0x00900000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PF6] && $QSPI1_IO3_PF6 } {	
++		mmw 0x40021400 0x00002000 0
++		mmw 0x40021408 0x00001000 0
++		mmw 0x40021420 0x09000000 0
++	}
++	
++	if { [info exists QSPI1_IO3_PG14] && $QSPI1_IO3_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x09000000 0
++	}
++	
++##############################QSPI1_SCK###############################		
++	#QSPI_SCK: PB1, PB2, PD3, PF10
++	
++	if { [info exists QSPI1_SCK_PB1] && $QSPI1_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x00000090 0
++	}
++	
++	if { [info exists QSPI1_SCK_PB2] && $QSPI1_SCK_PB2 } {	
++		mmw 0x40020400 0x00000020 0
++		mmw 0x40020408 0x00000010 0
++		mmw 0x40020420 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_SCK_PD3] && $QSPI1_SCK_PD3 } {	
++		mmw 0x40020C00 0x00000080 0
++		mmw 0x40020C08 0x00000040 0
++		mmw 0x40020C20 0x0000A000 0
++	}
++	
++	if { [info exists QSPI1_SCK_PF10] && $QSPI1_SCK_PF10 } {	
++		mmw 0x40021400 0x00200000 0
++		mmw 0x40021408 0x00100000 0
++		mmw 0x40021424 0x00000900 0
++	}
++	
++##############################QSPI1_CS###############################		
++	#QSPI_CS: PB6, PB9, PB10, PC11, PG6
++	
++	if { [info exists QSPI1_CS_PB6] && $QSPI1_CS_PB6 } {	
++		mmw 0x40020400 0x00002000 0
++		mmw 0x40020408 0x00001000 0
++		mmw 0x40020420 0x0A000000 0
++	}
++	
++	if { [info exists QSPI1_CS_PB9] && $QSPI1_CS_PB9 } {	
++		mmw 0x40020400 0x00080000 0
++		mmw 0x40020408 0x00040000 0
++		mmw 0x40020424 0x000000A0 0
++	}
++	
++	if { [info exists QSPI1_CS_PB10] && $QSPI1_CS_PB10 } {	
++		mmw 0x40020400 0x00200000 0
++		mmw 0x40020408 0x00100000 0
++		mmw 0x40020424 0x00000900 0
++	}
++	
++	if { [info exists QSPI1_CS_PC11] && $QSPI1_CS_PC11 } {	
++		mmw 0x40020800 0x00800000 0
++		mmw 0x40020808 0x00400000 0
++		mmw 0x40020824 0x00009000 0
++	}
++	
++	if { [info exists QSPI1_CS_PG6] && $QSPI1_CS_PG6 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021820 0x0A000000 0
++	}
++}	
++
++proc qspi2_init { } {
++	global a
++	
++	#Enable GPIO AHB Clock 
++	mmw 0x40023830 0x000000FF 0 ;# CRM->AHBEN1 |= GPIOA-GPIOH (enable clocks)
++	mmw 0x40023838 0x00000402 0 ;# Enable QSPI2 and QSPI2 Clock
++	
++###################Select QSPI2 GPIO IO0, IO1, IO2, IO3, SCK, CS##############################
++	# set QSPI2_IO0_PB0 1 ;#PB0
++	# set QSPI2_IO0_PE7 1 ;#PE7
++	 set QSPI2_IO0_PG14 1 ;#PG14
++	
++	# set QSPI2_IO1_PA15 1 ;#PA15
++	# set QSPI2_IO1_PB7 1 ;#PB7
++	# set QSPI2_IO1_PC3 1 ;#PC3
++	# set QSPI2_IO1_PE8 1 ;#PE8
++	  set QSPI2_IO1_PG12 1 ;#PG12
++	
++	# set QSPI2_IO2_PA5 1 ;#PA5
++	# set QSPI2_IO2_PE9  1 ;#PE9
++	# set QSPI2_IO2_PG10 1 ;#PG10
++	
++	# set QSPI2_IO3_PA3 1 ;#PA3
++	# set QSPI2_IO3_PE10  1 ;#PE10
++	# set QSPI2_IO3_PG11 1 ;#PG11
++	
++	
++	# set QSPI2_SCK_PB1 1 ;#PB1
++	# set QSPI2_SCK_PG13  1 ;#PG13
++	  
++	# set QSPI2_CS_PB8 1 ;#PB8
++	# set QSPI2_CS_PG8  1 ;#PG8
++	
++	
++##############################QSPI2_IO0###############################	
++	# QSPI_IO0: PB0, PE7, PG14
++	
++	if { [info exists QSPI2_IO0_PB0] && $QSPI2_IO0_PB0 } {	
++		mmw 0x40020400 0x00000002 0
++		mmw 0x40020408 0x00000001 0
++		mmw 0x40020420 0x00000009 0
++	}
++	
++	if { [info exists QSPI2_IO0_PE7] && $QSPI2_IO0_PE7 } {	
++		mmw 0x40021000 0x00008000 0
++		mmw 0x40021008 0x00004000 0
++		mmw 0x40021020 0xA0000000 0
++	}
++	
++	if { [info exists QSPI2_IO0_PG14] && $QSPI2_IO0_PG14 } {	
++		mmw 0x40021800 0x20000000 0
++		mmw 0x40021808 0x10000000 0
++		mmw 0x40021824 0x05000000 0
++	}
++	
++##############################QSPI2_IO1###############################	
++	#QSPI_IO1: PA15, PB7, PC3, PE8, PG12
++	
++	if { [info exists QSPI2_IO1_PA15] && $QSPI2_IO1_PA15 } {	
++		mmw 0x40020000 0x80000000 0
++		mmw 0x40020008 0x40000000 0
++		mmw 0x40020024 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PB7] && $QSPI2_IO1_PB7 } {	
++		mmw 0x40020400 0x00008000 0
++		mmw 0x40020408 0x00004000 0
++		mmw 0x40020420 0x90000000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PC3] && $QSPI2_IO1_PC3 } {	
++		mmw 0x40020800 0x00000080 0
++		mmw 0x40020808 0x00000040 0
++		mmw 0x40020820 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO1_PE8] && $QSPI2_IO1_PE8 } {	
++		mmw 0x40021000 0x00020000 0
++		mmw 0x40021000 0x00010000 0
++		mmw 0x40021024 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_IO1_PG12] && $QSPI2_IO1_PG12 } {	
++		mmw 0x40021800 0x02000000 0
++		mmw 0x40021808 0x01000000 0
++		mmw 0x40021824 0x00050000 0
++	}
++	
++##############################QSPI2_IO2###############################		
++	#QSPI_IO2: PA5, PE9, PG10
++	
++	if { [info exists QSPI2_IO2_PA5] && $QSPI2_IO2_PA5 } {	
++	
++		mmw 0x40020000 0x00000800 0
++		mmw 0x40020008 0x00000400 0
++		mmw 0x40020020 0x00900000 0
++	}
++	
++	if { [info exists QSPI2_IO2_PE9] && $QSPI2_IO2_PE9 } {	
++	
++		mmw 0x40021000 0x00080000 0
++		mmw 0x40021008 0x00040000 0
++		mmw 0x40021024 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_IO2_PG10] && $QSPI2_IO2_PG10 } {	
++		mmw 0x40021800 0x00200000 0
++		mmw 0x40021808 0x00100000 0
++		mmw 0x40021824 0x00000500 0
++	}
++	
++##############################QSPI2_IO3###############################		
++	#QSPI_IO3: PA3, PE10, PG11
++	
++	if { [info exists QSPI2_IO3_PA3] && $QSPI2_IO3_PA3 } {	
++	
++		mmw 0x40020000 0x00000080 0
++		mmw 0x40020008 0x00000040 0
++		mmw 0x40020020 0x00009000 0
++	}
++	
++	if { [info exists QSPI2_IO3_PE10] && $QSPI2_IO3_PE10 } {	
++	
++		mmw 0x40021000 0x00200000 0
++		mmw 0x40021008 0x00100000 0
++		mmw 0x40021024 0x00000A00 0
++	}
++	
++	if { [info exists QSPI2_IO3_PG11] && $QSPI2_IO3_PG11 } {	
++		mmw 0x40021800 0x00800000 0
++		mmw 0x40021808 0x00400000 0
++		mmw 0x40021824 0x00005000 0
++	}
++	
++##############################QSPI2_SCK###############################		
++	#QSPI_SCK: PB1, PG13
++	
++	if { [info exists QSPI2_SCK_PB1] && $QSPI2_SCK_PB1 } {	
++		mmw 0x40020400 0x00000008 0
++		mmw 0x40020408 0x00000004 0
++		mmw 0x40020420 0x000000A0 0
++	}
++	
++	if { [info exists QSPI2_SCK_PG13] && $QSPI2_SCK_PG13 } {	
++		mmw 0x40021800 0x08000000 0
++		mmw 0x40021808 0x04000000 0
++		mmw 0x40021824 0x00500000 0
++	}
++
++	
++##############################QSPI2_CS###############################		
++	#QSPI_CS: PB8, PG8
++	
++	if { [info exists QSPI2_CS_PB8] && $QSPI2_CS_PB8 } {	
++		mmw 0x40020400 0x00020000 0
++		mmw 0x40020408 0x00010000 0
++		mmw 0x40020424 0x0000000A 0
++	}
++	
++	if { [info exists QSPI2_CS_PG8] && $QSPI2_CS_PG8 } {	
++		mmw 0x40021800 0x00002000 0
++		mmw 0x40021808 0x00001000 0
++		mmw 0x40021824 0x00000005 0
++	}
++}	
+-- 
+2.52.0
+
