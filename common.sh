@@ -343,7 +343,7 @@ run()
     done
 
     # do the cleanup
-    rm -rf ${PREFIX}/share/{info,locale,man}
+    rm -rf ${PREFIX}/share/{doc,info,locale,man}
     rm -rf ${PREFIX}/prereqs
 
     echo ">>> ALL FINISHED <<<"
