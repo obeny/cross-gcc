@@ -469,7 +469,7 @@ CONF_GENDISABLE="--disable-nls --disable-dependency-tracking"
 # generic cmake configuration options
 CMAKE_BASE="-D CMAKE_VERBOSE_MAKEFILE=TRUE ${CMAKE_PREFIX} -D CMAKE_BUILD_TYPE=Release"
 
-STEPS_GEN="download unpack mkbuilddir"
+STEPS_GEN="download unpack patch bootstrap mkbuilddir"
 
 REQUIRED_CMDS+=" makeinfo yacc flex m4 make cmake gcc pkg-config wget"
 
