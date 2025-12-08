@@ -174,12 +174,13 @@ download()
 {
     local DNLPATH="${1}"
     local URLPROTO="$(urlproto "${DNLPATH}")"
+    URLPROTO=$(urlproto $DNLPATH)
     local PROTO="$(echo "${URLPROTO}" | cut -f 1 -d ' ')"
     local URL="$(echo "${URLPROTO}" | cut -f 2 -d ' ')"
 
     case "${PROTO}" in
     git)
-        download_git "${URL}"
+        download_git "${DNLPATH}"
         ;;
     *)
         download_web "${URL}"
@@ -206,17 +207,26 @@ download_web()
 download_git()
 {
     local URL="${1}"
-
-    local GIT_URL="$(echo "${URL}" | cut -f 1 -d '@')"
-    local GIT_HASH="$(echo "${URL}" | cut -f 2 -d '@')"
-    local GIT_BRANCH="$(echo "${URL}" | cut -f 3 -d '@')"
-    local GIT_DIR="$(repodir "${URL}")-${GIT_HASH}"
+    local GIT_DIR="$(echo "${URL}"  | cut -f 1 -d '%')"
+    local GIT_URL="$(echo "${URL}"  | cut -f 2 -d '%' | cut -f 2 -d '@')"
+    local GIT_HASH="$(echo "${URL}" | cut -f 2 -d '%' | cut -f 3 -d '@')"
 
     if [ ! -d "${GIT_DIR}" ]; then
-        print_info "GIT CLONE: git clone ${GIT_URL} ${GIT_DIR}; hash: ${GIT_HASH}"
-        git clone "${GIT_URL}" --branch "${GIT_BRANCH}" --single-branch "${GIT_DIR}"
-        cd "${GIT_DIR}" || exit
+        print_info "GIT: ${GIT_URL} -> ${GIT_DIR}; hash: ${GIT_HASH}"
+        mkdir "${GIT_DIR}" && cd "${GIT_DIR}" || exit
+        git init
+        git remote add origin "${GIT_URL}"
+        git fetch --depth=1 origin "${GIT_HASH}"
+
         git checkout "${GIT_HASH}"
+
+        # handle submodules
+        if [ -e ".gitmodules" ]; then
+            print_info "Running submodule update"
+            git submodule update --init --recursive
+        else
+            print_info "No gitmodules found, skipping"
+        fi
         cd ..
     else
         print_info "GIT dir already exists: ${GIT_DIR}"
@@ -243,59 +253,25 @@ exec_stage()
 extract()
 {
     local DNLPATH="${1}"
-    local URLPROTO="$(urlproto ${DNLPATH})"
-    local PROTO="$(echo ${URLPROTO} | cut -f 1 -d ' ')"
-    local REPO="$(echo ${URLPROTO} | cut -f 2 -d ' ')"
-    local REPO_DIR="$(srcdir ${DNLPATH})"
+    local URLPROTO="$(urlproto "${DNLPATH}")"
+    URLPROTO=$(urlproto $DNLPATH)
+    local PROTO="$(echo "${URLPROTO}" | cut -f 1 -d ' ')"
 
-    # handle download
     case "${PROTO}" in
     git)
-        print_info "No need to unpack repo ${REPO}"
+        local GIT_DIR="$(echo "${DNLPATH}" | cut -f 1 -d '%')"
+        print_uinfo "extracting: nothing to unpack ${GIT_DIR}"
         ;;
     *)
-        print_info "Downloading..."
-        local FILE="$(basename ${1})"
-        FILE=${FILE%%;*}
-        local DIR="${FILE}"
-        DIR=${DIR%%.tar.*}
-        if [ ! -e "${DIR}" ]; then
-            print_uinfo "extracting: ${FILE}"
-            tar xf "${FILE}" || die "extraction failed: ${FILE}"
+        local SRC_DIR="$(echo "${DNLPATH}" | cut -f 1 -d '%')"
+        local SRC_FILE="$(basename ${DNLPATH})"
+        if [ ! -e "${SRC_DIR}" ]; then
+            print_uinfo "extracting: ${SRC_FILE}"
+            mkdir "${SRC_DIR}"
+            tar xf "${SRC_FILE}" -C "${SRC_DIR}" --strip-components=1 || die "extraction failed: ${SRC_FILE}"
         else
-            print_info "source already exists: ${DIR}"
+            print_info "source already exists: ${SRC_DIR}"
         fi
-        ;;
-    esac
-
-    # handle git submodules
-    if [ "${PROTO}" == "git" ]; then
-        print_info "Checking for git modules"
-        cd "${REPO_DIR}" || exit
-        if [ -n ".gitmodules" ]; then
-            print_info "Running submodule update"
-            git submodule update --init --recursive
-        else
-            print_info "No gitmodules found, skipping"
-        fi
-        cd ..
-    fi
-
-    # run bootstrap script
-    case "${PROTO}" in
-    git)
-        print_info "Checking for bootstrap script"
-        cd "${REPO_DIR}" || exit
-        BOOTSTRAP_SCR="$(find . -maxdepth 1 -name '*bootstrap*')"
-        if [ -n "${BOOTSTRAP_SCR}" ]; then
-            print_info "Running bootstrap: ${BOOTSTRAP_SCR}"
-            ./${BOOTSTRAP_SCR}
-        else
-            print_info "No bootstrap found, skipping"
-        fi
-        cd ..
-        ;;
-    *)
         ;;
     esac
 }
