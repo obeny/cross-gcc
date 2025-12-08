@@ -412,8 +412,8 @@ stage_binutils_generic()
 }
 
 # generic environment configuration
-CURDIR=$(pwd)
-ROOTDIR=${CURDIR}/..
+CURDIR="$(pwd)"
+ROOTDIR="$(readlink -f ${CURDIR}/..)"
 HOST=$(gcc -dumpmachine)
 TARGET=$(basename "${CURDIR}")
 BUILD_PREFIX="${BUILD_PREFIX:-}"
@@ -471,8 +471,8 @@ for cmd in ${REQUIRED_CMDS}; do
     fi
 done
 
-source ${CURDIR}/../VERSIONS
-source ${CURDIR}/../prereqs.sh
+source ${ROOTDIR}/VERSIONS
+source ${ROOTDIR}/prereqs.sh
 export PATH
 
 # default variable values
