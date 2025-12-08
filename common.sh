@@ -150,51 +150,23 @@ run_make()
 # -----------------------------------------
 urlproto()
 {
-    local DPATH="${1}"
-
-    if echo "${DPATH}" | grep -q '@'; then
-        echo "$(echo ${DPATH} | cut -f 1 -d '@') $(echo ${DPATH} | cut -f 2- -d '@')"
+    local DPATH="$(echo "${1}" | cut -f 2 -d '%')"
+    local PROTO=""
+    if echo "${DPATH}" | cut -f 2 -d ';' | grep -q '@'; then
+        PROTO="$(echo ${DPATH} | cut -f 1 -d '@') $(echo ${DPATH} | cut -f 2- -d '@')"
     else
-        echo "web ${DPATH}"
+        PROTO="web ${DPATH}"
     fi
-}
 
-# -----------------------------------------
-repodir()
-{
-    local URL="${1}"
-    local BRANCH="$(echo "${URL}" | cut -f 3 -d '@')"
-
-    basename "${BRANCH}"
+    echo "${PROTO}"
 }
 
 # -----------------------------------------
 srcdir()
 {
     local DNLPATH="${1}"
-    local URLPROTO="$(urlproto "${DNLPATH}")"
-    local PROTO="$(echo "${URLPROTO}" | cut -f 1 -d ' ')"
-    local URL="$(echo "${URLPROTO}" | cut -f 2 -d ' ')"
-
-    local REV="$(echo "${URL}" | cut -f 2 -d '@')"
-    local DIR="$(repodir "${URL}")-${REV}"
-    local FILE
-    local CUSTOM_DIR
-
-    case "${PROTO}" in
-    git)
-        echo "${DIR}"
-        ;;
-    *)
-        if echo "${DNLPATH}" | grep -q ";"; then
-            CUSTOM_DIR="$(echo "${DNLPATH}" | cut -d ";" -f 2)"
-            echo "${CUSTOM_DIR}"
-        else
-            FILE="$(basename "${DNLPATH}")"
-            echo "${FILE}" | sed -e 's/\.tar\..*//g'
-        fi
-        ;;
-    esac
+    local DIR="$(echo "${DNLPATH}" | cut -f 1 -d '%')"
+    echo "${DIR}"
 }
 
 # -----------------------------------------
