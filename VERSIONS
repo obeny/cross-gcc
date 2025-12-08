@@ -6,7 +6,7 @@
 BINUTILS_VER="2.45.1"
 
 #GCC_VER="15.2.0"
-GCC_VER="gcc-15%git@git://gcc.gnu.org/git/gcc.git@2481b8b42213da13d6f24b76a30a7917f1b06ae0" #releases/gcc-15 2025-11-24 15.2.x
+GCC_VER="gcc-15%git@https://github.com/gcc-mirror/gcc.git@10932131fd133554ecd92f792e48f1015229dac6" #releases/gcc-15 2025-12-04 15.2.x
 GCC_DNADR="${GCC_VER}"
 
 # toolchain package urls
@@ -16,7 +16,7 @@ GCC_DNADR="${GCC_DNADR:=gcc%https://ftpmirror.gnu.org/gcc/gcc-${GCC_VER}/gcc-${G
 #
 # prerequisite versions
 # =====================
-ZLIB_NG_VER="2.2.5"
+ZLIB_NG_VER="2.3.2"
 ZSTD_VER="1.5.7"
 GMP_VER="6.3.0"
 MPFR_VER="4.2.2"
