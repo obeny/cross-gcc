@@ -38,19 +38,19 @@ stage_unpack()
 
 stage_patch()
 {
-    # common
-    if [ -e "${ROOTDIR}/patches/common" ]
+    # shared
+    if [ -e "${ROOTDIR}/patches/shared" ]
     then
-        print_info "Patching common packages..."
-        for PKG in "${ROOTDIR}"/patches/common/*
+        print_info "Patching shared packages..."
+        for PKG in "${ROOTDIR}"/patches/shared/*
         do
             PKG_BASE=$(basename "${PKG}")
             cd "${BUILDDIR}/${PKG_BASE}"
             print_info "package: ${PKG_BASE}"
-            for PATCH in "${ROOTDIR}"/patches/common/"${PKG_BASE}"/*
+            for PATCH in "${ROOTDIR}"/patches/shared/"${PKG_BASE}"/*
             do
                 PATCH_BASE=$(basename "${PATCH}")
-                do_patch "${ROOTDIR}/patches/common/${PKG_BASE}/${PATCH_BASE}" 1
+                do_patch "${ROOTDIR}/patches/shared/${PKG_BASE}/${PATCH_BASE}" 1
             done
         done
     fi
