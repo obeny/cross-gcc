@@ -1,7 +1,7 @@
-From 2b4aea21de2bc5c4b71f3580128f564e33669a54 Mon Sep 17 00:00:00 2001
+From 687dec7a7200e2b448503703462eade1fa7fd02a Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Thu, 15 Sep 2022 13:13:03 +0800
-Subject: [PATCH 06/18] modify target cfg
+Subject: [PATCH 05/16] modify target cfg
 
 ---
  tcl/target/at32f403axx.cfg | 6 +++++-
@@ -223,5 +223,5 @@ index 661cd5c5e..d3f5a54b6 100644
  
  # Allow overriding the Flash bank size
 -- 
-2.52.0
+2.54.0
 

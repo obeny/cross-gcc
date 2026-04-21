@@ -1,7 +1,7 @@
-From d04010bb259f51652e0b1688de657e0f72129651 Mon Sep 17 00:00:00 2001
+From df1a05458babf2889a7c381196bfeb0d2125efd3 Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Thu, 22 Sep 2022 14:57:34 +0800
-Subject: [PATCH 07/18] atlink
+Subject: [PATCH 06/16] atlink
 
 ---
  contrib/60-openocd.rules | 3 +++
@@ -20,5 +20,5 @@ index 151b4e2c0..fc68db373 100644
 +
  LABEL="openocd_rules_end"
 -- 
-2.52.0
+2.54.0
 

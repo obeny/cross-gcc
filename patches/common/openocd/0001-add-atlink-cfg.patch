@@ -1,7 +1,7 @@
-From 4dad8774879fee4961a16b7610582c28f4dd332b Mon Sep 17 00:00:00 2001
+From 31650eb0d1edb43abe1b6b755db93a51d563433b Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Thu, 23 Jun 2022 09:41:44 +0800
-Subject: [PATCH 02/18] add atlink cfg
+Subject: [PATCH 01/16] add atlink cfg
 
 Signed-off-by: ArteryTek <Artery_Forum_01@arterytek.com>
 ---
@@ -51,5 +51,5 @@ index 000000000..c49cc503b
 +# Optionally specify the serial number of CMSIS-DAP usb device.
 +# adapter serial 02200201E6661E601B98E3B9
 -- 
-2.52.0
+2.54.0
 

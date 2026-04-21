@@ -1,7 +1,7 @@
-From fe6d1cf7e78508cfe37d384a68c0623bcfdfaffd Mon Sep 17 00:00:00 2001
+From 0050cd547d1f9dce0bb6a34b15b2e3e0a40a0dae Mon Sep 17 00:00:00 2001
 From: Maxjta <411572327@qq.com>
 Date: Wed, 11 Dec 2024 10:17:05 +0800
-Subject: [PATCH 14/18] Add Support AT32F45x
+Subject: [PATCH 13/16] Add Support AT32F45x
 
 ---
  tcl/target/at32f45xx.cfg | 92 ++++++++++++++++++++++++++++++++++++++++
@@ -107,5 +107,5 @@ index 000000000..d564d10a9
 +	sleep 1
 +}
 -- 
-2.52.0
+2.54.0
 

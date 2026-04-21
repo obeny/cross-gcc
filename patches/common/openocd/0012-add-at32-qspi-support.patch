@@ -1,14 +1,14 @@
-From 5d4e4f786d209b38e338d821da55d85c74b81234 Mon Sep 17 00:00:00 2001
+From df993a3ff2e8c3bd072aeca032396cfdecea3bc2 Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Tue, 6 Aug 2024 11:47:52 +0800
-Subject: [PATCH 13/18] add at32 qspi support
+Subject: [PATCH 12/16] add at32 qspi support
 
 ---
  src/flash/nor/Makefile.am      |    8 +-
  src/flash/nor/at32qspi.c       | 1187 ++++++++++++++++++++++++++++++++
  src/flash/nor/at32qspi.h       |    9 +
  src/flash/nor/driver.h         |    1 +
- src/flash/nor/drivers.c        |    2 +-
+ src/flash/nor/drivers.c        |    1 +
  tcl/target/at32f402xx_qspi.cfg |  329 +++++++++
  tcl/target/at32f405xx_qspi.cfg |  329 +++++++++
  tcl/target/at32f435xG_qspi.cfg |  559 +++++++++++++++
@@ -17,7 +17,7 @@ Subject: [PATCH 13/18] add at32 qspi support
  tcl/target/at32f437xG_qspi.cfg |  559 +++++++++++++++
  tcl/target/at32f437xM_qspi.cfg |  557 +++++++++++++++
  tcl/target/at32f437xx_qspi.cfg |  557 +++++++++++++++
- 13 files changed, 5207 insertions(+), 5 deletions(-)
+ 13 files changed, 5207 insertions(+), 4 deletions(-)
  create mode 100644 src/flash/nor/at32qspi.c
  create mode 100644 src/flash/nor/at32qspi.h
  create mode 100644 tcl/target/at32f402xx_qspi.cfg
@@ -30,7 +30,7 @@ Subject: [PATCH 13/18] add at32 qspi support
  create mode 100644 tcl/target/at32f437xx_qspi.cfg
 
 diff --git a/src/flash/nor/Makefile.am b/src/flash/nor/Makefile.am
-index d308ec0e5..b55daeb9c 100644
+index 6ceb75699..2d1aeac3f 100644
 --- a/src/flash/nor/Makefile.am
 +++ b/src/flash/nor/Makefile.am
 @@ -1,5 +1,3 @@
@@ -39,9 +39,9 @@ index d308ec0e5..b55daeb9c 100644
  noinst_LTLIBRARIES += %D%/libocdflashnor.la
  %C%_libocdflashnor_la_SOURCES = \
  	%D%/core.c \
-@@ -85,7 +83,8 @@ NOR_DRIVERS = \
- 	%D%/xmc1xxx.c \
+@@ -88,7 +86,8 @@ NOR_DRIVERS = \
  	%D%/xmc4xxx.c \
+ 	%D%/hpm_xpi.c \
  	%D%/at32f4xx.c \
 -	%D%/at32xx.c
 +	%D%/at32xx.c  \
@@ -49,7 +49,7 @@ index d308ec0e5..b55daeb9c 100644
  
  NORHEADERS = \
  	%D%/artery.h \
-@@ -103,4 +102,5 @@ NORHEADERS = \
+@@ -106,4 +105,5 @@ NORHEADERS = \
  	%D%/spi.h \
  	%D%/stm32l4x.h \
  	%D%/stmqspi.h \
@@ -1265,10 +1265,10 @@ index 000000000..c30e5764d
 +
 +#endif
 diff --git a/src/flash/nor/driver.h b/src/flash/nor/driver.h
-index 7b308cbcf..a8e1dcf2e 100644
+index 0e468c121..9b66f6288 100644
 --- a/src/flash/nor/driver.h
 +++ b/src/flash/nor/driver.h
-@@ -326,5 +326,6 @@ extern const struct flash_driver at32f435xx_flash;
+@@ -331,5 +331,6 @@ extern const struct flash_driver at32f435xx_flash;
  extern const struct flash_driver at32f437xx_flash;
  extern const struct flash_driver at32f423xx_flash;
  extern const struct flash_driver at32f4xx_flash;
@@ -1276,14 +1276,13 @@ index 7b308cbcf..a8e1dcf2e 100644
  
  #endif /* OPENOCD_FLASH_NOR_DRIVER_H */
 diff --git a/src/flash/nor/drivers.c b/src/flash/nor/drivers.c
-index 13e00a784..3d1756bcd 100644
+index 984aefd19..ccd323247 100644
 --- a/src/flash/nor/drivers.c
 +++ b/src/flash/nor/drivers.c
-@@ -118,7 +118,7 @@ static const struct flash_driver * const flash_drivers[] = {
+@@ -123,6 +123,7 @@ static const struct flash_driver * const flash_drivers[] = {
  	&at32f437xx_flash,
  	&at32f423xx_flash,
  	&at32f4xx_flash,
--
 +	&at32qspi_flash,
  	NULL,
  };
@@ -5342,5 +5341,5 @@ index 000000000..c50ef7907
 +	}
 +}	
 -- 
-2.52.0
+2.54.0
 

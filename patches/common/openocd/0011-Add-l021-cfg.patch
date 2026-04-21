@@ -1,18 +1,18 @@
-From cf600578fc8857e7bedd147a42ff9877da0dd8a4 Mon Sep 17 00:00:00 2001
-From: Maxjta <411572327@qq.com>
-Date: Tue, 12 Aug 2025 14:42:08 +0800
-Subject: [PATCH 18/18] Add AT32F011 cfg file.
+From fb56173b7ec4c4e21e6e54d93cbf08dac01ffd25 Mon Sep 17 00:00:00 2001
+From: ArteryTek <Artery_Forum_01@arterytek.com>
+Date: Tue, 16 Jul 2024 15:30:38 +0800
+Subject: [PATCH 11/16] Add l021 cfg
 
 ---
- tcl/target/at32f011xx.cfg | 82 +++++++++++++++++++++++++++++++++++++++
+ tcl/target/at32l021xx.cfg | 82 +++++++++++++++++++++++++++++++++++++++
  1 file changed, 82 insertions(+)
- create mode 100644 tcl/target/at32f011xx.cfg
+ create mode 100644 tcl/target/at32l021xx.cfg
 
-diff --git a/tcl/target/at32f011xx.cfg b/tcl/target/at32f011xx.cfg
+diff --git a/tcl/target/at32l021xx.cfg b/tcl/target/at32l021xx.cfg
 new file mode 100644
 index 000000000..3ba583726
 --- /dev/null
-+++ b/tcl/target/at32f011xx.cfg
++++ b/tcl/target/at32l021xx.cfg
 @@ -0,0 +1,82 @@
 +# script for AT32f4xx family
 +
@@ -97,5 +97,5 @@ index 000000000..3ba583726
 +	mmw 0xE0042004 0x00000020 0
 +}
 -- 
-2.52.0
+2.54.0
 

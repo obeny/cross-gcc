@@ -1,7 +1,7 @@
-From 8ff8646d51f16f6e4f734cc11f082499efdef90f Mon Sep 17 00:00:00 2001
+From 4c6700839f998e7c47b8420288c9b768e2079f66 Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Sat, 8 Oct 2022 09:25:24 +0800
-Subject: [PATCH 08/18] add target cfg xG
+Subject: [PATCH 07/16] add target cfg xG
 
 ---
  tcl/target/at32f403axG.cfg | 88 ++++++++++++++++++++++++++++++++++++++
@@ -557,5 +557,5 @@ index 002d3b110..1585f7452 100644
  
  # JTAG speed should be <= F_CPU/6. F_CPU after reset is 8MHz, so use F_JTAG = 1MHz
 -- 
-2.52.0
+2.54.0
 

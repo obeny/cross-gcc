@@ -1,7 +1,7 @@
-From f1923743aba351fb6674aac5cb9543211edc3fe4 Mon Sep 17 00:00:00 2001
+From e20e1b94ed75924c2ef850e5e1dbe66b4393dc50 Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Tue, 16 Jul 2024 15:25:18 +0800
-Subject: [PATCH 11/18] add m412 m416 cfg
+Subject: [PATCH 10/16] add m412 m416 cfg
 
 ---
  tcl/target/at32a423xx.cfg                     | 91 +++++++++++++++++++
@@ -705,5 +705,5 @@ index 3da130b5f..36ed1cce6 100644
 +}
 \ No newline at end of file
 -- 
-2.52.0
+2.54.0
 

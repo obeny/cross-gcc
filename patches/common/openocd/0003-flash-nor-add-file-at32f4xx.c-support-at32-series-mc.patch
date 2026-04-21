@@ -1,7 +1,7 @@
-From f655e18b0992cc7fb615a18b3a07a0a3ee3ff18c Mon Sep 17 00:00:00 2001
+From 184c917eefeeb57571263eb885d52d9a2364e849 Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Thu, 23 Jun 2022 10:03:17 +0800
-Subject: [PATCH 04/18] flash/nor: add file at32f4xx.c, support at32 series mcu
+Subject: [PATCH 03/16] flash/nor: add file at32f4xx.c, support at32 series mcu
 
 Signed-off-by: ArteryTek <Artery_Forum_01@arterytek.com>
 ---
@@ -15,15 +15,15 @@ Signed-off-by: ArteryTek <Artery_Forum_01@arterytek.com>
  create mode 100644 src/flash/nor/at32xx.h
 
 diff --git a/src/flash/nor/Makefile.am b/src/flash/nor/Makefile.am
-index f40855900..d308ec0e5 100644
+index 5c4737f7a..6ceb75699 100644
 --- a/src/flash/nor/Makefile.am
 +++ b/src/flash/nor/Makefile.am
-@@ -83,7 +83,9 @@ NOR_DRIVERS = \
- 	%D%/w600.c \
+@@ -86,7 +86,9 @@ NOR_DRIVERS = \
  	%D%/xcf.c \
  	%D%/xmc1xxx.c \
--	%D%/xmc4xxx.c
-+	%D%/xmc4xxx.c \
+ 	%D%/xmc4xxx.c \
+-	%D%/hpm_xpi.c
++	%D%/hpm_xpi.c \
 +	%D%/at32f4xx.c \
 +	%D%/at32xx.c
  
@@ -1366,5 +1366,5 @@ index 000000000..077a2dfca
 +
 +
 -- 
-2.52.0
+2.54.0
 

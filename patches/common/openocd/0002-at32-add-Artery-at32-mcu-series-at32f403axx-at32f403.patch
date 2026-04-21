@@ -1,7 +1,7 @@
-From 33726638f24799c7bd0aa50d61eddc245685c5c7 Mon Sep 17 00:00:00 2001
+From 34beb19023eb5c33892809cf8390b27cc0f3515f Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Thu, 23 Jun 2022 09:58:34 +0800
-Subject: [PATCH 03/18] at32:add Artery at32 mcu series
+Subject: [PATCH 02/16] at32:add Artery at32 mcu series
  at32f403axx/at32f403xx/at32f407xx/at32f413xx/at32f415xx/at32f421xx/at32f425xx/at32f435xx/at32f437xx/at32wb415xx
  support
 
@@ -1104,5 +1104,5 @@ index 000000000..661cd5c5e
 +	mmw 0xE0042004 0x00000020 0
 +}
 -- 
-2.52.0
+2.54.0
 

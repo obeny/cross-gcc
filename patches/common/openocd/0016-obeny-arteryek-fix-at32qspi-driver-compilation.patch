@@ -1,16 +1,25 @@
-From 837d64cc1af7dfef86e6d02c469d32b9a3b09473 Mon Sep 17 00:00:00 2001
+From 4a5240699669e4934591bbb1a102ea34c4a74397 Mon Sep 17 00:00:00 2001
 From: Marcin Benka <marcin.benka@gmail.com>
-Date: Thu, 24 Oct 2024 00:12:15 +0200
-Subject: [PATCH 16/18] [obeny]: fix compilation of at32qspi driver
+Date: Wed, 24 Sep 2025 20:56:27 +0200
+Subject: [PATCH 16/16] obeny: arteryek - fix at32qspi driver compilation
 
 ---
- src/flash/nor/at32qspi.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ src/flash/nor/at32qspi.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/src/flash/nor/at32qspi.c b/src/flash/nor/at32qspi.c
-index 1a39e3dc0..8cc434afb 100644
+index 1a39e3dc0..eb8fc4eb3 100644
 --- a/src/flash/nor/at32qspi.c
 +++ b/src/flash/nor/at32qspi.c
+@@ -200,7 +200,7 @@ QSPI_OPERATE_MODE_114,
+ 8, 
+ 0x32, 
+ QSPI_XIP_ADDRLEN_3_BYTE,
+-QSPI_XIP_ADDRLEN_3_BYTE, 
++QSPI_OPERATE_MODE_114, 
+ 0, 
+ QSPI_XIPW_SEL_MODED, 
+ 0x7F, 
 @@ -1169,7 +1169,7 @@ static const struct command_registration at32qspi_command_handlers[] = {
  	COMMAND_REGISTRATION_DONE
  };
@@ -21,5 +30,5 @@ index 1a39e3dc0..8cc434afb 100644
  	.commands = at32qspi_command_handlers,
  	.flash_bank_command = at32qspi_flash_bank_command,
 -- 
-2.52.0
+2.54.0
 

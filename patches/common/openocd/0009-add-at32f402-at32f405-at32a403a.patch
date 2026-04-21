@@ -1,7 +1,7 @@
-From 4d5acbdd4299defa4d772a50ba21fb13bb6aabe7 Mon Sep 17 00:00:00 2001
+From aa4ec82b956cf0dd32d97d40fd6d5e9b7ba1dfda Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Wed, 23 Aug 2023 09:08:43 +0800
-Subject: [PATCH 10/18] add at32f402/at32f405/at32a403a
+Subject: [PATCH 09/16] add at32f402/at32f405/at32a403a
 
 ---
  src/flash/nor/at32f4xx.c   | 67 ++++++++++++++++++++++-------
@@ -484,5 +484,5 @@ index 000000000..d2561f251
 +	mmw 0xE0042004 0x00000020 0
 +}
 -- 
-2.52.0
+2.54.0
 

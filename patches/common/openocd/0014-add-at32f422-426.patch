@@ -1,7 +1,7 @@
-From 4682bd405d66d988d07f45c0bfb1619d6d383aae Mon Sep 17 00:00:00 2001
+From 5a127fb0e939195c0497faff9f1cb386701bc8ce Mon Sep 17 00:00:00 2001
 From: Maxjta <411572327@qq.com>
 Date: Tue, 27 May 2025 13:00:42 +0800
-Subject: [PATCH 15/18] add at32f422/426
+Subject: [PATCH 14/16] add at32f422/426
 
 ---
  tcl/target/at32f422xx.cfg | 92 +++++++++++++++++++++++++++++++++++++++
@@ -207,5 +207,5 @@ index 000000000..9d2bcaa18
 +	sleep 1
 +}
 -- 
-2.52.0
+2.54.0
 

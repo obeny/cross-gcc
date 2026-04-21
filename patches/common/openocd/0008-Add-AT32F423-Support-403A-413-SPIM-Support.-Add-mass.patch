@@ -1,15 +1,15 @@
-From 5e8d44af57b752333fba204237938162782a5df5 Mon Sep 17 00:00:00 2001
+From 94d7efbecbc82fbb94aba069f8c0df65ea7cf96b Mon Sep 17 00:00:00 2001
 From: ArteryTek <Artery_Forum_01@arterytek.com>
 Date: Mon, 13 Mar 2023 09:29:26 +0800
-Subject: [PATCH 09/18] Add AT32F423 Support,  403A/413 SPIM Support. Add mass
+Subject: [PATCH 08/16] Add AT32F423 Support,  403A/413 SPIM Support. Add mass
  erase and disable access protection command
 
 ---
  src/flash/nor/at32f4xx.c                      | 641 ++++++++++--------
  src/flash/nor/at32xx.c                        |   8 +-
  src/flash/nor/at32xx.h                        |  28 +-
- src/flash/nor/driver.h                        |   2 +
- src/flash/nor/drivers.c                       |  15 +
+ src/flash/nor/driver.h                        |   4 +
+ src/flash/nor/drivers.c                       |  17 +
  tcl/target/at32f403_spim_type1_remap0.cfg     |  97 +++
  tcl/target/at32f403_spim_type2_remap0.cfg     |  98 +++
  .../at32f403a_407_spim_type1_remap0.cfg       |  97 +++
@@ -38,7 +38,7 @@ Subject: [PATCH 09/18] Add AT32F423 Support,  403A/413 SPIM Support. Add mass
  tcl/target/at32f437xM.cfg                     |   4 +-
  tcl/target/at32f437xx.cfg                     |   4 +-
  tcl/target/at32wb415xx.cfg                    |   4 +-
- 33 files changed, 1475 insertions(+), 342 deletions(-)
+ 33 files changed, 1479 insertions(+), 342 deletions(-)
  create mode 100644 tcl/target/at32f403_spim_type1_remap0.cfg
  create mode 100644 tcl/target/at32f403_spim_type2_remap0.cfg
  create mode 100644 tcl/target/at32f403a_407_spim_type1_remap0.cfg
@@ -1036,10 +1036,22 @@ index 077a2dfca..8cf7a5973 100644
  
  
 diff --git a/src/flash/nor/driver.h b/src/flash/nor/driver.h
-index 56883e9f0..7b308cbcf 100644
+index 838f49517..0e468c121 100644
 --- a/src/flash/nor/driver.h
 +++ b/src/flash/nor/driver.h
-@@ -324,5 +324,7 @@ extern const struct flash_driver at32f421xx_flash;
+@@ -317,15 +317,19 @@ extern const struct flash_driver w600_flash;
+ extern const struct flash_driver xcf_flash;
+ extern const struct flash_driver xmc1xxx_flash;
+ extern const struct flash_driver xmc4xxx_flash;
++
+ extern const struct flash_driver at32f403xx_flash;
+ extern const struct flash_driver at32f413xx_flash;
+ extern const struct flash_driver at32f415xx_flash;
+ extern const struct flash_driver at32f403axx_flash;
+ extern const struct flash_driver at32f407xx_flash;
+ extern const struct flash_driver at32wb415xx_flash;
++
+ extern const struct flash_driver at32f421xx_flash;
  extern const struct flash_driver at32f425xx_flash;
  extern const struct flash_driver at32f435xx_flash;
  extern const struct flash_driver at32f437xx_flash;
@@ -1048,7 +1060,7 @@ index 56883e9f0..7b308cbcf 100644
  
  #endif /* OPENOCD_FLASH_NOR_DRIVER_H */
 diff --git a/src/flash/nor/drivers.c b/src/flash/nor/drivers.c
-index 94b0d076a..13e00a784 100644
+index 1481db63e..984aefd19 100644
 --- a/src/flash/nor/drivers.c
 +++ b/src/flash/nor/drivers.c
 @@ -2,6 +2,19 @@
@@ -1071,15 +1083,27 @@ index 94b0d076a..13e00a784 100644
   ***************************************************************************/
  
  #ifdef HAVE_CONFIG_H
-@@ -103,6 +116,8 @@ static const struct flash_driver * const flash_drivers[] = {
+@@ -96,16 +109,20 @@ static const struct flash_driver * const flash_drivers[] = {
+ 	&xcf_flash,
+ 	&xmc1xxx_flash,
+ 	&xmc4xxx_flash,
++
+ 	&at32f403xx_flash,
+ 	&at32f413xx_flash,
+ 	&at32f415xx_flash,
+ 	&at32f403axx_flash,
+ 	&at32f407xx_flash,
+ 	&at32wb415xx_flash,
++
+ 	&at32f421xx_flash,
  	&at32f425xx_flash,
  	&at32f435xx_flash,
  	&at32f437xx_flash,
 +	&at32f423xx_flash,
 +	&at32f4xx_flash,
- 
  	NULL,
  };
+ 
 diff --git a/tcl/target/at32f403_spim_type1_remap0.cfg b/tcl/target/at32f403_spim_type1_remap0.cfg
 new file mode 100644
 index 000000000..ab9976218
@@ -2474,5 +2498,5 @@ index d3f5a54b6..3da130b5f 100644
  reset_config srst_nogate
  
 -- 
-2.52.0
+2.54.0
 
