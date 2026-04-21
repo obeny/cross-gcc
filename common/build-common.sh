@@ -54,7 +54,7 @@ function stage_openocd()
     set_buildflags_base
     cd ${BUILDDIR}/build-openocd || exit
 
-    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PREFIX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink || die "openocd configuration failed..."
+    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PREFIX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink --disable-werror || die "openocd configuration failed..."
 
     run_make || die "openocd make failed..."
     make -j1 install || die "openocd installation failed..."
