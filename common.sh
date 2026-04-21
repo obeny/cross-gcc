@@ -502,10 +502,8 @@ for cmd in ${REQUIRED_CMDS}; do
     fi
 done
 
-source ${ROOTDIR}/VERSIONS
-source ${ROOTDIR}/prereqs.sh
-export PATH
+STEPS=""
+ALL_DNADR=""
 
-# default variable values
-STEPS+="binutils gcc "
-ALL_DNADR+="${BINUTILS_DNADR} ${GCC_DNADR} "
+source ${ROOTDIR}/VERSIONS
+export PATH
