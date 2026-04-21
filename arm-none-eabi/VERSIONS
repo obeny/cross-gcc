@@ -1,18 +1,8 @@
 #!/bin/sh
 # package versions
 
-GDB_VER="17.1"
-
 #NEWLIB_VER="4.6.0.20260123"
 NEWLIB_VER="newlib%git@git://sourceware.org/git/newlib-cygwin.git@5f515cf3d6e338e062ba25e93abccd5b6eb1d596" #4.6.0; cygwin 3.7.0-dev; 2026-03-30
 NEWLIB_DNADR="${NEWLIB_VER}"
 
-#OPENOCD_VER="0.12.0"
-OPENOCD_VER="openocd%git@https://github.com/openocd-org/openocd.git@aa9ff8dc5ec60c46134f57a2f858149bb083036e" #main 0.12+, update on 2025-12-08
-OPENOCD_DNADR="${OPENOCD_VER}"
-
-# download addresses
-GDB_DNADR="gdb%https://ftpmirror.gnu.org/gdb/gdb-${GDB_VER}.tar.xz"
-
 NEWLIB_DNADR="${NEWLIB_DNADR:=newlib%ftp://sourceware.org/pub/newlib/newlib-${NEWLIB_VER}.tar.gz}"
-OPENOCD_DNADR="${OPENOCD_DNADR:=openocd%http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2}"

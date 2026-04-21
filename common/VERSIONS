@@ -1,0 +1,12 @@
+#!/bin/sh
+# package versions
+
+GDB_VER="17.1"
+
+#OPENOCD_VER="0.12.0"
+OPENOCD_VER="openocd%git@https://github.com/openocd-org/openocd.git@aa9ff8dc5ec60c46134f57a2f858149bb083036e" #main 0.12+, update on 2025-12-08
+OPENOCD_DNADR="${OPENOCD_VER}"
+
+# download addresses
+GDB_DNADR="gdb%https://ftpmirror.gnu.org/gdb/gdb-${GDB_VER}.tar.xz"
+OPENOCD_DNADR="${OPENOCD_DNADR:=openocd%http://sourceforge.net/projects/openocd/files/openocd/${OPENOCD_VER}/openocd-${OPENOCD_VER}.tar.bz2}"

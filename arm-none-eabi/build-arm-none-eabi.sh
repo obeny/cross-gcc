@@ -1,8 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC1091,SC2034,SC2086,SC2329
 
-REQUIRED_CMDS="jimsh libftdi-config"
-
 # load framework
 source ./VERSIONS
 source ../common.sh
@@ -10,13 +8,13 @@ source ../common.sh
 #
 # CONFIG SECTION
 #
-ALL_DNADR+="${NEWLIB_DNADR} ${GDB_DNADR} ${OPENOCD_DNADR}"
+ALL_DNADR+="${NEWLIB_DNADR}"
 
 # steps definition
-STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano gdb openocd"
+STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano"
 
 # configure options
-CONF_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
+CONF_TARGET_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
 
 # newlibc configuration
 LIBC_COMMON_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-reent-check-verify --enable-newlib-retargetable-locking \
@@ -37,13 +35,11 @@ function target_info()
     echo -e "BINUTILS-version:\t ${BINUTILS_VER}"
     echo -e "GCC-version:\t\t ${GCC_VER}"
     echo -e "NEWLIB-version:\t\t ${NEWLIB_VER}"
-    echo -e "GDB-version:\t\t ${GDB_VER}"
-    echo -e "OpenOCD-version:\t ${OPENOCD_VER}"
 }
 
 function stage_mkbuilddir()
 {
-    mkdir -p ${BUILDDIR}/{build-binutils,build-gcc,build-libc-nano,build-libc-full,build-gcc-nano,build-gcc-full,build-gdb,build-openocd}
+    mkdir -p ${BUILDDIR}/{build-binutils,build-gcc,build-libc-nano,build-libc-full,build-gcc-nano,build-gcc-full}
 }
 
 function stage_binutils()
@@ -151,32 +147,6 @@ function stage_copy-nano()
     mkdir -p ${PREFIX}/${TARGET}/include/newlib-nano
     cp ${PREFIX}/nano/${TARGET}/include/newlib.h ${PREFIX}/${TARGET}/include/newlib-nano
     rm -rf ${PREFIX}/nano
-}
-
-function stage_gdb()
-{
-    set_buildflags_base
-    cd ${BUILDDIR}/build-gdb || exit
-
-    configure_gen "$(srcdir ${GDB_DNADR})" ${CONF_COMMON} --with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} || die "gdb configuration failed..."
-
-    run_make || die "gdb make failed..."
-    make -j1 install || die "gdb installation failed..."
-
-    remove_bdir build-gdb || die "removing builddir failed..."
-}
-
-function stage_openocd()
-{
-    set_buildflags_base
-    cd ${BUILDDIR}/build-openocd || exit
-
-    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PREFIX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink || die "openocd configuration failed..."
-
-    run_make || die "openocd make failed..."
-    make -j1 install || die "openocd installation failed..."
-
-    remove_bdir build-openocd || die "removing builddir failed..."
 }
 
 run
