@@ -4,14 +4,15 @@
 # load framework
 source ./VERSIONS
 source ../common.sh
+source ${ROOTDIR}/prereqs.sh
 
 #
 # CONFIG SECTION
 #
-ALL_DNADR+="${LIBC_DNADR} ${AVRDUDE_DNADR}"
+ALL_DNADR+="${DNADR_PREREQ} ${BINUTILS_DNADR} ${GCC_DNADR} ${LIBC_DNADR} ${AVRDUDE_DNADR}"
 
 # steps definition
-STEPS+="avr_libc avrdude"
+STEPS+="binutils gcc avr_libc avrdude"
 
 # configure options
 CONF_TARGET_COMMON="${CONF_PREFIX} --target=${TARGET}"
