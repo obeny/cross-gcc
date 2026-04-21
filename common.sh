@@ -9,6 +9,7 @@ fi
 # die if any error occured or variable is unset
 set -e
 set -u
+set -o pipefail
 #set -x
 
 #
@@ -127,11 +128,13 @@ do_patch()
     local PFILE="${1}"
     local PLEVEL="${2}"
 
+    print_uinfo "applying patch: ${PFILE}"
     if [ -z "${PLEVEL}" ]; then
         patch -p0 < "${PFILE}" || die "patching: ${PFILE} failed"
     else
         patch -p"${PLEVEL}" < "${PFILE}" || die "patching: ${PFILE} failed"
     fi
+    echo
 }
 
 # -----------------------------------------
@@ -236,14 +239,14 @@ download_git()
 # -----------------------------------------
 exec_stage()
 {
-    if [ ! -e stage_${1} ]; then
+    if [ ! -e .stage_${1} ]; then
         print_stepinfo "running stage: ${1}"
-        stage_${1} || die "couldn't execute: stage_${1}"
+        stage_${1} | tee ${BUILDDIR}/.stage_${1}.log || die "couldn't execute: stage_${1}"
         print_info "stage: ${1} completed successfully"
 
         cd "${BUILDDIR}" || exit
-        touch stage_${1}
-        env > stage_${1}.env
+        touch .stage_${1}
+        env > .stage_${1}.env
     else
         print_info " stage: ${1} already completed: skipping it..."
     fi
@@ -319,7 +322,7 @@ run()
     ALL_STEPS="${STEPS_GEN} ${STEPS_PREREQ} ${STEPS}"
     print_uinfo "script will perform following steps: ${ALL_STEPS}"
     echo "press RETURN key to continue..."
-    read -r
+    wait_ret
     for STEP in ${ALL_STEPS}
     do
         exec_stage ${STEP}
@@ -330,17 +333,27 @@ run()
     rm -rf ${PREFIX}/prereqs
 
     echo ">>> ALL FINISHED <<<"
-    read -r
+    wait_ret
 }
 
 # -----------------------------------------
 show_info()
 {
+    echo -e "PREREQS INFO:"
+    echo -e "============="
     prereq_info
     echo
+    echo -e "TOOLCHAIN INFO:"
+    echo -e "==============="
     target_info
     echo
     echo "press RETURN key to continue..."
+    wait_ret
+}
+
+# -----------------------------------------
+wait_ret()
+{
     read -r
 }
 
@@ -398,7 +411,7 @@ configure_prereq()
 # -----------------------------------------
 configure_binutils()
 {
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --with-zstd --enable-plugins $*"
+    ARGS="${CONF_TARGET_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --with-zstd --enable-plugins $*"
     print_details "binutils" "configure ${ARGS}"
 
     SDIR="$(srcdir ${BINUTILS_DNADR})"
@@ -408,7 +421,7 @@ configure_binutils()
 # -----------------------------------------
 configure_gcc()
 {
-    ARGS="${CONF_COMMON} ${CONF_GENOPTS} ${CONF_GENOPTSGCC} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --enable-languages=${CONF_LANG} $*"
+    ARGS="${CONF_TARGET_COMMON} ${CONF_GENOPTS} ${CONF_GENOPTSGCC} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --enable-languages=${CONF_LANG} $*"
     print_details "gcc" "configure ${ARGS}"
 
     SDIR="$(srcdir "${GCC_DNADR}")"
@@ -444,6 +457,7 @@ PATH="${PREFIX}/bin:${PATH}"
 BUILDDIR=${BUILDDIR:-/tmp/tc_${TARGET}-build}
 JOBS=$(nproc)
 MAKEOPTS="-s -j${JOBS}"
+TC_BRANDING="CROSS-GCC"
 
 BASE_CFLAGS="-O2 -pipe -g0 -ffunction-sections -fdata-sections -s -Wno-error -w"
 BASE_LDFLAGS="-O1"
@@ -460,7 +474,7 @@ CMAKE_PREFIX="-D CMAKE_INSTALL_PREFIX=${PREFIX}"
 CONF_LANG="c,c++"
 CONF_DISLIB="--disable-libada --disable-libssp --disable-libmudflap --disable-libgomp --disable-libffi --disable-libquadmath"
 CONF_GNU="--with-gnu-as --with-gnu-ld"
-CONF_RELEASE="--enable-checking=release --with-pkgversion='CROSS-GCC'"
+CONF_RELEASE="--enable-checking=release --with-pkgversion='${TC_BRANDING}'"
 CONF_GENOPTS="--enable-lto"
 CONF_GENOPTSGCC_PREREQ="--with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} --with-libelf=${PREFIX_PREREQS}"
 CONF_GENOPTSGCC="${CONF_GENOPTSGCC_PREREQ} --libexecdir=${PREFIX}/lib --with-system-zlib --with-zstd --enable-fixed-point --enable-static --disable-libstdcxx-pch --disable-libatomic --disable-threads --disable-tls --disable-decimal-float --disable-shared"

@@ -17,7 +17,6 @@ prereq_set_buildflags()
 
 prereq_info()
 {
-    echo -e "PREREQUIREMENTS INFO:"
     echo -e "ZLIB-NG:\t\t ${ZLIB_NG_VER}"
     echo -e "ZSTD:\t\t\t ${ZSTD_VER}"
     echo -e "GMP:\t\t\t ${GMP_VER}"
@@ -74,9 +73,6 @@ stage_pr_gmp()
 
 stage_pr_mpfr()
 {
-    #cd "$(srcdir "${MPFR_DNADR}")" || exit
-    #do_patch "${ROOTDIR}"/_patches/mpfr-4.2.0-p12.patch 1
-
     print_info "BUILDING prerequisite: mpfr"
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-mpfr || exit

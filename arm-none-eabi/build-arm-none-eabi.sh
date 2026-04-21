@@ -73,7 +73,7 @@ function stage_newlib-full()
     export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET}"
     cd ${BUILDDIR}/build-libc-full || exit
 
-    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} || die "newlib-full configuration failed..."
+    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_TARGET_COMMON} ${CONF_DISLIB} ${LIBC_FULL_OPTS} || die "newlib-full configuration failed..."
 
     run_make || die "newlib-full make failed..."
     make -j1 install || die "newlib-full installation failed..."
@@ -88,7 +88,7 @@ function stage_newlib-nano()
     export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -fno-exceptions"
     cd ${BUILDDIR}/build-libc-nano || exit
 
-    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
+    configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_TARGET_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
 
     run_make || die "newlib-nano make failed..."
     make -j1 install || die "newlib-nano installation failed..."

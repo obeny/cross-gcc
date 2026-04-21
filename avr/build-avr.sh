@@ -14,7 +14,7 @@ ALL_DNADR+="${LIBC_DNADR} ${AVRDUDE_DNADR}"
 STEPS+="avr_libc avrdude"
 
 # configure options
-CONF_COMMON="${CONF_PREFIX} --target=${TARGET}"
+CONF_TARGET_COMMON="${CONF_PREFIX} --target=${TARGET}"
 
 #
 # MAIN
