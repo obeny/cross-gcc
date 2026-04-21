@@ -23,7 +23,7 @@ CONF_COMMON="${CONF_PREFIX}"
 # MAIN
 #
 
-# show introduction
+# show info
 function target_info()
 {
     echo -e "GDB-version:\t\t ${GDB_VER}"
@@ -40,9 +40,10 @@ function stage_gdb()
     set_buildflags_base
     cd ${BUILDDIR}/build-gdb || exit
 
-    configure_gen "$(srcdir ${GDB_DNADR})" ${CONF_COMMON} ${CONF_GENDISABLE} --with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} --with-expat=${PREFIX_PREREQS} \
-        --with-pkgversion="'${TC_BRANDING}'" --with-system-readline --with-python=/usr/bin/python --enable-languages=c,c++ --enable-multilib --enable-interwork --enable-targets=all || die "gdb configuration failed..."
-
+    configure_gen "$(srcdir ${GDB_DNADR})" ${CONF_COMMON} ${CONF_GENDISABLE} \
+        --with-gmp=${PREFIX_PREREQS} --with-mpfr=${PREFIX_PREREQS} --with-mpc=${PREFIX_PREREQS} --with-isl=${PREFIX_PREREQS} --with-expat=${PREFIX_PREREQS} \
+        --with-pkgversion="'${TC_BRANDING}'" --with-system-readline --with-python=/usr/bin/python --enable-languages=${CONF_LANG} \
+        --enable-multilib --enable-interwork --enable-targets=all || die "gdb configuration failed..."
     run_make || die "gdb make failed..."
     make -j1 install || die "gdb installation failed..."
 
@@ -54,7 +55,9 @@ function stage_openocd()
     set_buildflags_base
     cd ${BUILDDIR}/build-openocd || exit
 
-    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PREFIX} --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink --disable-werror || die "openocd configuration failed..."
+    configure_gen "$(srcdir ${OPENOCD_DNADR})" ${CONF_PREFIX} \
+        --enable-ftdi --enable-stlink --enable-jlink --enable-internal-jimtcl --enable-internal-libjaylink \
+        --disable-werror || die "openocd configuration failed..."
 
     run_make || die "openocd make failed..."
     make -j1 install || die "openocd installation failed..."

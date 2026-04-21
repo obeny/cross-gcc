@@ -21,7 +21,7 @@ CONF_TARGET_COMMON="${CONF_PREFIX} --target=${TARGET}"
 # MAIN
 #
 
-# show introduction
+# show info
 function target_info()
 {
     echo -e "BINUTILS-version:\t ${BINUTILS_VER}"

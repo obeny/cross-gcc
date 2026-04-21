@@ -92,8 +92,8 @@ stage_bootstrap()
             BOOTSTRAP_SCR="$(find . -maxdepth 1 -name '*bootstrap*')"
             if [ -n "${BOOTSTRAP_SCR}" ]; then
                 print_info "Running bootstrap: ${PKGNAME} ${BOOTSTRAP_SCR}"
-               ./${BOOTSTRAP_SCR} || exit
-               print_info "Bootstrap finished"
+                ./${BOOTSTRAP_SCR} || exit
+                print_info "Bootstrap finished"
             else
                 print_info "No bootstrap found, skipping"
             fi

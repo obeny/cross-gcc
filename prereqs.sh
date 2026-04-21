@@ -39,7 +39,8 @@ stage_pr_zlib()
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-zlib || exit
 
-    configure_prereq "$(srcdir "${ZLIB_NG_DNADR}")" --static --zlib-compat || die "prerequisite zlib-ng configuration failed..."
+    configure_prereq "$(srcdir "${ZLIB_NG_DNADR}")" \
+        --static --zlib-compat || die "prerequisite zlib-ng configuration failed..."
     run_make || die "prerequisite zlib-ng make failed..."
     make -j1 install || die "prerequisite zlib-ng installation failed..."
 
@@ -64,7 +65,9 @@ stage_pr_gmp()
     export CFLAGS+=" -std=c17"
     cd "${BUILDDIR}"/build-gmp || exit
 
-    configure_prereq "$(srcdir "${GMP_DNADR}")" --host="${HOST}" --enable-static --enable-cxx --disable-shared --without-readline || die "prerequisite gmp configuration failed..."
+    configure_prereq "$(srcdir "${GMP_DNADR}")" \
+        --host="${HOST}" --enable-static --enable-cxx --disable-shared \
+        --without-readline || die "prerequisite gmp configuration failed..."
     run_make || die "prerequisite gmp make failed..."
     make -j1 install || die "prerequisite gmp installation failed..."
 
@@ -77,7 +80,9 @@ stage_pr_mpfr()
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-mpfr || exit
 
-    configure_prereq "$(srcdir "${MPFR_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls --with-gmp="${PREFIX_PREREQS}" || die "prerequisite mpfr configuration failed..."
+    configure_prereq "$(srcdir "${MPFR_DNADR}")" \
+        --host="${HOST}" --enable-static --disable-shared --disable-nls \
+        --with-gmp="${PREFIX_PREREQS}" || die "prerequisite mpfr configuration failed..."
     run_make || die "prerequisite mpfr make failed..."
     make -j1 install || die "prerequisite mpfr installation failed..."
 
@@ -90,7 +95,9 @@ stage_pr_mpc()
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-mpc || exit
 
-    configure_prereq "$(srcdir "${MPC_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls --with-gmp="${PREFIX_PREREQS}" --with-mpfr="${PREFIX_PREREQS}" || die "prerequisite mpc configuration failed..."
+    configure_prereq "$(srcdir "${MPC_DNADR}")" \
+        --host="${HOST}" --enable-static --disable-shared --disable-nls \
+        --with-gmp="${PREFIX_PREREQS}" --with-mpfr="${PREFIX_PREREQS}" || die "prerequisite mpc configuration failed..."
     run_make || die "prerequisite mpc make failed..."
     make -j1 install || die "prerequisite mpc installation failed..."
 
@@ -103,7 +110,9 @@ stage_pr_isl()
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-isl || exit
 
-    configure_prereq "$(srcdir "${ISL_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls --with-gmp-prefix="${PREFIX_PREREQS}" || die "prerequisite isl configuration failed..."
+    configure_prereq "$(srcdir "${ISL_DNADR}")" \
+        --host="${HOST}" --enable-static --disable-shared --disable-nls \
+        --with-gmp-prefix="${PREFIX_PREREQS}" || die "prerequisite isl configuration failed..."
     run_make || die "prerequisite isl make failed..."
     make -j1 install || die "prerequisite isl installation failed..."
 
@@ -116,7 +125,9 @@ stage_pr_expat()
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-expat || exit
 
-    configure_prereq "$(srcdir "${EXPAT_DNADR}")" --host="${HOST}" --enable-static --disable-shared --disable-nls || die "prerequisite expat configuration failed..."
+    configure_prereq "$(srcdir "${EXPAT_DNADR}")" \
+        --host="${HOST}" --enable-static \
+        --disable-shared --disable-nls || die "prerequisite expat configuration failed..."
     run_make || die "prerequisite expat make failed..."
     make -j1 install || die "prerequisite expat installation failed..."
 
@@ -129,7 +140,9 @@ stage_pr_elfutils()
     prereq_set_buildflags
     cd "${BUILDDIR}"/build-elfutils || exit
 
-    configure_prereq "$(srcdir "${ELFUTILS_DNADR}")" --host="${HOST}" --disable-nls --disable-debuginfod --disable-libdebuginfod --without-bzlib --without-lzma --without-zstd || die "prerequisite elfutils configuration failed..."
+    configure_prereq "$(srcdir "${ELFUTILS_DNADR}")" \
+        --host="${HOST}" --disable-nls \
+        --disable-debuginfod --disable-libdebuginfod || die "prerequisite elfutils configuration failed..."
     run_make || die "prerequisite elfutils make failed..."
     make -j1 install || die "prerequisite elfutils installation failed..."
 

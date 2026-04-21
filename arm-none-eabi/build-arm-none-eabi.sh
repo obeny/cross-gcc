@@ -30,6 +30,8 @@ LIBC_CFLAGS="-g -fdata-sections -ffunction-sections -pipe"
 #
 # MAIN
 #
+
+# show info
 function target_info()
 {
     echo -e "BINUTILS-version:\t ${BINUTILS_VER}"
@@ -52,8 +54,8 @@ function stage_gcc()
     set_buildflags_base
     cd ${BUILDDIR}/build-gcc || exit
 
-    configure_gcc --enable-languages=c --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} --with-newlib \
-    --without-headers || die "gcc configuration failed..."
+    configure_gcc --enable-languages=c --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} \
+        --with-newlib --without-headers || die "gcc configuration failed..."
     run_make all-gcc || die "gcc make failed..."
     make -j1 install-gcc || die "gcc installation failed..."
 
@@ -100,7 +102,7 @@ function stage_gcc-finish-full()
     export CXXFLAGS_FOR_TARGET="-g -O2 ${LIBC_CFLAGS}"
 
     configure_gcc --with-newlib --with-headers=yes --enable-plugins \
-    --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
+        --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
     run_make all || die "gcc-finish-full make failed..."
@@ -118,7 +120,7 @@ function stage_gcc-finish-nano()
     export CXXFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS} -fno-exceptions"
 
     configure_gcc --with-newlib --with-headers=yes --enable-plugins \
-    --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} || die "gcc-finish-nano configuration failed..."
+        --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} || die "gcc-finish-nano configuration failed..."
 
     export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
     run_make all || die "gcc-finish-nano make failed..."
