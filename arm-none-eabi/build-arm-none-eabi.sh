@@ -4,14 +4,15 @@
 # load framework
 source ./VERSIONS
 source ../common.sh
+source ${ROOTDIR}/prereqs.sh
 
 #
 # CONFIG SECTION
 #
-ALL_DNADR+="${NEWLIB_DNADR}"
+ALL_DNADR+="${DNADR_PREREQ} ${BINUTILS_DNADR} ${GCC_DNADR} ${NEWLIB_DNADR}"
 
 # steps definition
-STEPS+="newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano"
+STEPS+="binutils gcc newlib-full newlib-nano gcc-finish-full gcc-finish-nano copy-nano"
 
 # configure options
 CONF_TARGET_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
