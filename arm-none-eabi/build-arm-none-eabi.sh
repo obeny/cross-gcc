@@ -84,8 +84,8 @@ function stage_newlib-full()
 function stage_newlib-nano()
 {
     clear_buildflags
-    export CFLAGS_FOR_TARGET="-Os ${LIBC_CFLAGS}"
-    export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET}"
+    export CFLAGS_FOR_TARGET="-g -Os ${LIBC_CFLAGS}"
+    export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -fno-exceptions"
     cd ${BUILDDIR}/build-libc-nano || exit
 
     configure_gen "$(srcdir ${NEWLIB_DNADR})" ${CONF_COMMON} ${CONF_DISLIB} ${LIBC_NANO_OPTS} --prefix=${PREFIX}/nano || die "newlib-nano configuration failed..."
@@ -100,8 +100,8 @@ function stage_gcc-finish-full()
 {
     set_buildflags_base
     cd ${BUILDDIR}/build-gcc-full || exit
-    export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
-    export CXXFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS} -fno-exceptions"
+    export CFLAGS_FOR_TARGET="-g -O2 ${LIBC_CFLAGS}"
+    export CXXFLAGS_FOR_TARGET="-g -O2 ${LIBC_CFLAGS}"
 
     configure_gcc --with-newlib --with-headers=yes --enable-plugins \
     --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
