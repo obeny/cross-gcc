@@ -411,7 +411,7 @@ configure_prereq()
 # -----------------------------------------
 configure_binutils()
 {
-    ARGS="${CONF_TARGET_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --with-zstd --enable-plugins $*"
+    ARGS="${CONF_TARGET_COMMON} ${CONF_GENOPTS} ${CONF_GNU} ${CONF_RELEASE} ${CONF_DISLIB} ${CONF_GENDISABLE} --with-sysroot=${PREFIX}/${TARGET} --with-system-zlib --with-zstd --enable-plugins --enable-deterministic-archives $*"
     print_details "binutils" "configure ${ARGS}"
 
     SDIR="$(srcdir ${BINUTILS_DNADR})"
