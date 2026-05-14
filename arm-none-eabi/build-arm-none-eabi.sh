@@ -18,13 +18,22 @@ STEPS+="binutils gcc newlib-full newlib-nano gcc-finish-full gcc-finish-nano cop
 CONF_TARGET_COMMON="${CONF_PREFIX} --target=${TARGET} --enable-multilib --enable-interwork"
 
 # newlibc configuration
-LIBC_COMMON_OPTS="--disable-newlib-supplied-syscalls --enable-newlib-reent-check-verify --enable-newlib-retargetable-locking \
-    --disable-newlib-fvwrite-in-streamio --disable-newlib-fseek-optimization --disable-newlib-wide-orient"
+LIBC_COMMON_OPTS="--disable-newlib-supplied-syscalls \
+    --enable-newlib-retargetable-locking"
 
-LIBC_FULL_OPTS="${LIBC_COMMON_OPTS} --enable-newlib-io-long-long --enable-newlib-io-c99-formats --enable-newlib-register-fini \
+LIBC_FULL_OPTS="${LIBC_COMMON_OPTS} --enable-newlib-io-long-long \
+    --enable-newlib-io-c99-formats \
+    --enable-newlib-register-fini"
+
+LIBC_NANO_OPTS="${LIBC_COMMON_OPTS} --enable-newlib-global-atexit \
+    --enable-lite-exit \
+    --enable-newlib-reent-small \
+    --enable-newlib-nano-malloc \
+    --enable-newlib-nano-formatted-io \
+    --disable-newlib-fvwrite-in-streamio \
+    --disable-newlib-fseek-optimization \
+    --disable-newlib-wide-orient \
     --disable-newlib-unbuf-stream-opt"
-LIBC_NANO_OPTS="${LIBC_COMMON_OPTS} --enable-newlib-reent-small --enable-newlib-nano-malloc --disable-newlib-unbuf-stream-opt \
-    --enable-lite-exit --enable-newlib-global-atexit --enable-newlib-nano-formatted-io"
 
 LIBC_CFLAGS="-g -fdata-sections -ffunction-sections -pipe"
 
@@ -53,12 +62,15 @@ function stage_binutils()
 function stage_gcc()
 {
     set_buildflags_base
+    export CFLAGS_FOR_TARGET="-O2 ${LIBC_CFLAGS}"
+    export CXXFAGS_FOR_TARGET="${CFLAGS_FOR_TARGET}"
+
     cd ${BUILDDIR}/build-gcc || exit
 
     configure_gcc --enable-languages=c --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} \
         --with-newlib --without-headers || die "gcc configuration failed..."
-    run_make all-gcc || die "gcc make failed..."
-    make -j1 install-gcc || die "gcc installation failed..."
+    run_make INHIBIT_LIBC_CFLAGS='-DUSE_TM_CLONE_REGISTRY=0' all-gcc all-target-libgcc || die "gcc make failed..."
+    make -j1 install-gcc install-target-libgcc || die "gcc installation failed..."
 
     remove_bdir build-gcc || die "removing builddir failed..."
 
@@ -105,10 +117,8 @@ function stage_gcc-finish-full()
     configure_gcc --with-newlib --with-headers=yes --enable-plugins \
         --with-multilib-list=rmprofile --with-sysroot=${PREFIX}/${TARGET} || die "gcc-finish-full configuration failed..."
 
-    export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
     run_make all || die "gcc-finish-full make failed..."
     make -j1 install || die "gcc-finish-full installation failed..."
-    unset INHIBIT_LIBC_CFLAGS
 
     remove_bdir build-gcc-full || die "removing builddir failed..."
 }
@@ -123,10 +133,8 @@ function stage_gcc-finish-nano()
     configure_gcc --with-newlib --with-headers=yes --enable-plugins \
         --with-multilib-list=rmprofile --prefix=${PREFIX}/nano --with-sysroot=${PREFIX}/nano/${TARGET} || die "gcc-finish-nano configuration failed..."
 
-    export INHIBIT_LIBC_CFLAGS="-DUSE_TM_CLONE_REGISTRY=0"
-    run_make all || die "gcc-finish-nano make failed..."
+    run_make INHIBIT_LIBC_CFLAGS='-DUSE_TM_CLONE_REGISTRY=0' all || die "gcc-finish-nano make failed..."
     make -j1 install || die "gcc-finish-nano installation failed..."
-    unset INHIBIT_LIBC_CFLAGS
 
     remove_bdir build-gcc-nano || die "removing builddir failed..."
 }
@@ -136,19 +144,21 @@ function stage_copy-nano()
     MULTILIBS=$(${TARGET}-gcc -print-multi-lib)
     for MULTILIB in ${MULTILIBS}
     do
-	MULTILIB=${MULTILIB%%;*}
-	SRC="${PREFIX}/nano/${TARGET}/lib/${MULTILIB}"
-	DST="${PREFIX}/${TARGET}/lib/${MULTILIB}"
-	mkdir -p ${DST}
-	cp "${SRC}/libc.a" "${DST}/libc_nano.a"
-	cp "${SRC}/libg.a" "${DST}/libg_nano.a"
-	cp "${SRC}/librdimon.a" "${DST}/librdimon_nano.a"
-	cp "${SRC}/libstdc++.a" "${DST}/libstdc++_nano.a"
-	cp "${SRC}/libsupc++.a" "${DST}/libsupc++_nano.a"
+        MULTILIB=${MULTILIB%%;*}
+        SRC="${PREFIX}/nano/${TARGET}/lib/${MULTILIB}"
+        DST="${PREFIX}/${TARGET}/lib/${MULTILIB}"
+        mkdir -p ${DST}
+
+        cp -v "${SRC}/libc.a" "${DST}/libc_nano.a"
+        cp -v "${SRC}/libg.a" "${DST}/libg_nano.a"
+        cp -v "${SRC}/libm.a" "${DST}/libm_nano.a"
+        cp -v "${SRC}/librdimon.a" "${DST}/librdimon_nano.a"
+        cp -v "${SRC}/libstdc++.a" "${DST}/libstdc++_nano.a"
+        cp -v "${SRC}/libsupc++.a" "${DST}/libsupc++_nano.a"
     done
 
     mkdir -p ${PREFIX}/${TARGET}/include/newlib-nano
-    cp ${PREFIX}/nano/${TARGET}/include/newlib.h ${PREFIX}/${TARGET}/include/newlib-nano
+    cp -v ${PREFIX}/nano/${TARGET}/include/* ${PREFIX}/${TARGET}/include/newlib-nano/
     rm -rf ${PREFIX}/nano
 }
 
